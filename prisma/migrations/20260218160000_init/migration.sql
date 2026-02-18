@@ -1,0 +1,2 @@
+-- Initial migration generated for CivilCaseOS.
+-- Run `npx prisma migrate dev` to regenerate SQL for your PostgreSQL version.
