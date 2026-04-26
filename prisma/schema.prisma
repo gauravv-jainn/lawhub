@@ -1,0 +1,459 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model User {
+  id                      String         @id @default(cuid())
+  email                   String         @unique
+  password                String
+  full_name               String
+  phone                   String?
+  city                    String?
+  state                   String?
+  role                    Role           @default(client)
+  avatar_url              String?
+  // Subscription (lawyers only) — free | pro | elite
+  subscription_tier       String         @default("free")
+  subscription_expires_at DateTime?
+  created_at              DateTime       @default(now())
+  updated_at              DateTime       @updatedAt
+  accounts                Account[]
+  sessions                Session[]
+  ai_usage                AiUsage[]
+  bids                    Bid[]          @relation("LawyerBids")
+  briefs                  Brief[]        @relation("ClientBriefs")
+  case_events             CaseEvent[]
+  client_cases            Case[]         @relation("ClientCases")
+  lawyer_cases            Case[]         @relation("LawyerCases")
+  lawyer_profile          LawyerProfile?
+  sent_messages           Message[]      @relation("SentMessages")
+  notifications           Notification[]
+  client_payments         Payment[]      @relation("ClientPayments")
+  lawyer_payments         Payment[]      @relation("LawyerPayments")
+  reviews_given           Review[]       @relation("ReviewsGiven")
+  reviews_received        Review[]       @relation("ReviewsReceived")
+  subscriptions           Subscription[]
+  // Enterprise / NGO profiles
+  enterprise_profile      EnterpriseProfile?
+  ngo_profile             NGOProfile?
+  // Internship applications (students)
+  internship_applications InternshipApplication[] @relation("ApplicantApplications")
+  // Networking
+  sent_connections        Connection[]   @relation("ConnectionRequester")
+  received_connections    Connection[]   @relation("ConnectionRecipient")
+  // NGO cases handled by this lawyer
+  ngo_cases_assigned      NGOCase[]      @relation("NGOCaseLawyer")
+  // Student profile
+  student_profile         StudentProfile?
+
+  @@map("users")
+}
+
+model LawyerProfile {
+  id                    String   @id
+  bci_number            String   @unique
+  bar_council           String
+  primary_court         String
+  experience_years      Int      @default(0)
+  practice_areas        String[]
+  // junior_advocate | senior_advocate | associate
+  lawyer_type           String   @default("junior_advocate")
+  only_legal_advice     Boolean  @default(false)
+  bio                   String?
+  verification_status   String   @default("pending")
+  rejection_reason      String?
+  bci_doc_url           String?
+  aadhaar_doc_url       String?
+  degree_doc_url        String?
+  avg_rating            Float    @default(0)
+  review_count          Int      @default(0)
+  total_cases           Int      @default(0)
+  wins                  Int      @default(0)
+  created_at            DateTime @default(now())
+  updated_at            DateTime @updatedAt
+  user                  User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  enterprise_membership EnterpriseAssociate?
+
+  @@map("lawyer_profiles")
+}
+
+// ─── Enterprise ─────────────────────────────────────────────────────────────
+
+model EnterpriseProfile {
+  id              String   @id  // same as userId
+  firm_name       String
+  registration_no String   @unique
+  firm_type       String   @default("law_firm")  // law_firm | corporate | chambers
+  website         String?
+  description     String?
+  city            String?
+  state           String?
+  verification_status String @default("pending")
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  user            User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  associates      EnterpriseAssociate[]
+  internships     InternshipPosting[]
+
+  @@map("enterprise_profiles")
+}
+
+model EnterpriseAssociate {
+  id             String           @id @default(cuid())
+  enterprise_id  String
+  lawyer_id      String           @unique  // one profile → one firm
+  role           String           @default("associate")  // associate | intern | partner
+  joined_at      DateTime         @default(now())
+  enterprise     EnterpriseProfile @relation(fields: [enterprise_id], references: [id], onDelete: Cascade)
+  lawyer         LawyerProfile    @relation(fields: [lawyer_id], references: [id], onDelete: Cascade)
+
+  @@map("enterprise_associates")
+}
+
+// ─── Student ─────────────────────────────────────────────────────────────────
+
+model StudentProfile {
+  id         String   @id @default(cuid())
+  user_id    String   @unique
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  law_school String?
+  year       String?
+  skills     String[] @default([])
+  bio        String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@map("student_profiles")
+}
+
+// ─── NGO ────────────────────────────────────────────────────────────────────
+
+model NGOProfile {
+  id              String   @id  // same as userId
+  org_name        String
+  registration_no String   @unique
+  cause_areas     String[]
+  city            String?
+  state           String?
+  website         String?
+  description     String?
+  verification_status String @default("pending")
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+  user            User     @relation(fields: [id], references: [id], onDelete: Cascade)
+  cases           NGOCase[]
+
+  @@map("ngo_profiles")
+}
+
+model NGOCase {
+  id          String     @id @default(cuid())
+  ngo_id      String
+  title       String
+  description String
+  category    String
+  location    String?
+  status      String     @default("open")  // open | assigned | closed
+  lawyer_id   String?
+  created_at  DateTime   @default(now())
+  updated_at  DateTime   @updatedAt
+  ngo         NGOProfile @relation(fields: [ngo_id], references: [id], onDelete: Cascade)
+  lawyer      User?      @relation("NGOCaseLawyer", fields: [lawyer_id], references: [id])
+
+  @@map("ngo_cases")
+}
+
+// ─── Internships ─────────────────────────────────────────────────────────────
+
+model InternshipPosting {
+  id            String            @id @default(cuid())
+  enterprise_id String
+  title         String
+  description   String
+  duration      String            // e.g. "2 months", "6 weeks"
+  stipend       String?           // e.g. "₹5,000/month" or "Unpaid"
+  skills        String[]
+  location      String?
+  remote        Boolean           @default(false)
+  openings      Int               @default(1)
+  closes_at     DateTime?
+  status        String            @default("active")  // active | closed | filled
+  created_at    DateTime          @default(now())
+  updated_at    DateTime          @updatedAt
+  enterprise    EnterpriseProfile @relation(fields: [enterprise_id], references: [id], onDelete: Cascade)
+  applications  InternshipApplication[]
+
+  @@map("internship_postings")
+}
+
+model InternshipApplication {
+  id           String            @id @default(cuid())
+  posting_id   String
+  applicant_id String
+  cover_letter String
+  resume_url   String?
+  // pending | reviewed | shortlisted | rejected | accepted
+  status       String            @default("pending")
+  created_at   DateTime          @default(now())
+  posting      InternshipPosting @relation(fields: [posting_id], references: [id], onDelete: Cascade)
+  applicant    User              @relation("ApplicantApplications", fields: [applicant_id], references: [id], onDelete: Cascade)
+
+  @@unique([posting_id, applicant_id])
+  @@map("internship_applications")
+}
+
+// ─── Networking ──────────────────────────────────────────────────────────────
+
+model Connection {
+  id           String   @id @default(cuid())
+  requester_id String
+  recipient_id String
+  // pending | accepted | rejected
+  status       String   @default("pending")
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+  requester    User     @relation("ConnectionRequester", fields: [requester_id], references: [id], onDelete: Cascade)
+  recipient    User     @relation("ConnectionRecipient", fields: [recipient_id], references: [id], onDelete: Cascade)
+
+  @@unique([requester_id, recipient_id])
+  @@map("connections")
+}
+
+// ─── Existing models ─────────────────────────────────────────────────────────
+
+model Brief {
+  id                 String          @id @default(cuid())
+  client_id          String
+  title              String
+  category           String
+  court              String?
+  city               String?
+  state              String?
+  urgency            String?
+  description        String
+  structured_summary Json?
+  budget_min         Int?
+  budget_max         Int?
+  status             String          @default("open")
+  closes_at          DateTime?
+  created_at         DateTime        @default(now())
+  updated_at         DateTime        @updatedAt
+  bids               Bid[]
+  documents          BriefDocument[]
+  client             User            @relation("ClientBriefs", fields: [client_id], references: [id])
+  case               Case?
+
+  @@map("briefs")
+}
+
+model Bid {
+  id                  String   @id @default(cuid())
+  brief_id            String
+  lawyer_id           String
+  proposed_fee        Int
+  fee_structure       String?
+  milestone_count     Int      @default(1)
+  strategy_text       String
+  cover_letter        String
+  relevant_experience String?
+  availability        String?
+  estimated_timeline  String?
+  status              String   @default("pending")
+  created_at          DateTime @default(now())
+  brief               Brief    @relation(fields: [brief_id], references: [id])
+  lawyer              User     @relation("LawyerBids", fields: [lawyer_id], references: [id])
+
+  @@unique([brief_id, lawyer_id])
+  @@map("bids")
+}
+
+model Case {
+  id                String      @id @default(cuid())
+  brief_id          String      @unique
+  client_id         String
+  lawyer_id         String
+  title             String
+  status            String      @default("active")
+  total_fee         Int         @default(0)
+  fee_structure     String      @default("flat")
+  milestone_count   Int         @default(1)
+  current_milestone Int         @default(0)
+  next_hearing_date String?
+  created_at        DateTime    @default(now())
+  updated_at        DateTime    @updatedAt
+  events            CaseEvent[]
+  brief             Brief       @relation(fields: [brief_id], references: [id])
+  client            User        @relation("ClientCases", fields: [client_id], references: [id])
+  lawyer            User        @relation("LawyerCases", fields: [lawyer_id], references: [id])
+  messages          Message[]
+  payments          Payment[]
+  reviews           Review[]
+
+  @@map("cases")
+}
+
+model Payment {
+  id                  String    @id @default(cuid())
+  case_id             String
+  client_id           String
+  lawyer_id           String
+  milestone_number    Int
+  amount              Int
+  platform_fee        Int
+  net_amount          Int
+  // TDS tracking (Section 194J — 10% on professional fees)
+  tds_applicable      Boolean   @default(false)
+  tds_amount          Int       @default(0)
+  lawyer_final_amount Int       @default(0)  // net_amount - tds_amount
+  status              String    @default("pending")
+  razorpay_order_id   String?
+  razorpay_payment_id String?
+  paid_at             DateTime?
+  created_at          DateTime  @default(now())
+  case                Case      @relation(fields: [case_id], references: [id])
+  client              User      @relation("ClientPayments", fields: [client_id], references: [id])
+  lawyer              User      @relation("LawyerPayments", fields: [lawyer_id], references: [id])
+
+  @@map("payments")
+}
+
+model Subscription {
+  id           String   @id @default(cuid())
+  lawyer_id    String
+  tier         String   // pro | elite
+  amount_paid  Int      // in paise
+  starts_at    DateTime @default(now())
+  expires_at   DateTime
+  payment_id   String?  // Razorpay payment ID
+  order_id     String?  // Razorpay order ID
+  active       Boolean  @default(true)
+  created_at   DateTime @default(now())
+  lawyer       User     @relation(fields: [lawyer_id], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  user_id    String
+  type       String
+  title      String
+  body       String
+  link       String?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("notifications")
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  case_id    String
+  sender_id  String
+  content    String
+  created_at DateTime @default(now())
+  case       Case     @relation(fields: [case_id], references: [id])
+  sender     User     @relation("SentMessages", fields: [sender_id], references: [id])
+
+  @@map("messages")
+}
+
+model CaseEvent {
+  id          String   @id @default(cuid())
+  case_id     String
+  actor_id    String?
+  event_type  String
+  title       String
+  description String?
+  created_at  DateTime @default(now())
+  actor       User?    @relation(fields: [actor_id], references: [id])
+  case        Case     @relation(fields: [case_id], references: [id])
+
+  @@map("case_events")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  case_id    String
+  client_id  String
+  lawyer_id  String
+  rating     Int
+  review     String
+  created_at DateTime @default(now())
+  case       Case     @relation(fields: [case_id], references: [id])
+  client     User     @relation("ReviewsGiven", fields: [client_id], references: [id])
+  lawyer     User     @relation("ReviewsReceived", fields: [lawyer_id], references: [id])
+
+  @@map("reviews")
+}
+
+model BriefDocument {
+  id         String   @id @default(cuid())
+  brief_id   String
+  name       String
+  url        String
+  created_at DateTime @default(now())
+  brief      Brief    @relation(fields: [brief_id], references: [id], onDelete: Cascade)
+
+  @@map("brief_documents")
+}
+
+model AiUsage {
+  id          String   @id @default(cuid())
+  user_id     String
+  feature     String
+  tokens_used Int      @default(0)
+  created_at  DateTime @default(now())
+  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("ai_usage")
+}
+
+enum Role {
+  client
+  lawyer
+  enterprise
+  ngo
+  student
+  admin
+}

@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find \"D:/GitHUB projects - GJ/lawhub cc/src\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.tsx\" \\\\\\) -exec grep -l \"anthropic\\\\|openai\\\\|AI_MODEL\\\\|fetch.*ai\" {} \\\\;)"
+    ]
+  }
+}
