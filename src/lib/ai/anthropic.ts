@@ -5,8 +5,12 @@
  */
 import Anthropic from '@anthropic-ai/sdk';
 
+function getEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
 export const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY ?? '',
+  apiKey: getEnv('ANTHROPIC_API_KEY') ?? '',
 });
 
-export const AI_MODEL = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5';
+export const AI_MODEL = getEnv('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-5';

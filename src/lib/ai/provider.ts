@@ -19,18 +19,22 @@ export interface CompletionResponse {
   tokensUsed: number; // 0 for Ollama (free/local)
 }
 
+function getEnv(name: string): string | undefined {
+  return process.env[name];
+}
+
 // ─────────────────────────────────────────────
 // Anthropic provider
 // ─────────────────────────────────────────────
 async function callAnthropic(req: CompletionRequest): Promise<CompletionResponse> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey || apiKey === 'your_anthropic_api_key') {
+  const apiKey = getEnv('ANTHROPIC_API_KEY');
+  if (!apiKey) {
     throw new Error('ANTHROPIC_API_KEY is not configured in .env.local');
   }
 
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const client = new Anthropic({ apiKey });
-  const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5';
+  const model = getEnv('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-5';
 
   const message = await client.messages.create({
     model,
@@ -52,8 +56,8 @@ async function callAnthropic(req: CompletionRequest): Promise<CompletionResponse
 // Ollama provider  (with 60s timeout + clear memory error)
 // ─────────────────────────────────────────────
 async function callOllama(req: CompletionRequest): Promise<CompletionResponse> {
-  const baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
-  const model = process.env.OLLAMA_MODEL ?? 'qwen2.5:1.5b';
+  const baseUrl = getEnv('OLLAMA_BASE_URL') ?? 'http://localhost:11434';
+  const model = getEnv('OLLAMA_MODEL') ?? 'qwen2.5:1.5b';
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60_000); // 60s timeout
@@ -111,7 +115,7 @@ async function callOllama(req: CompletionRequest): Promise<CompletionResponse> {
 export async function generateCompletion(
   req: CompletionRequest,
 ): Promise<CompletionResponse> {
-  const provider = (process.env.AI_PROVIDER ?? 'ollama').toLowerCase();
+  const provider = (getEnv('AI_PROVIDER') ?? 'ollama').toLowerCase();
 
   if (provider === 'anthropic') {
     return callAnthropic(req);
