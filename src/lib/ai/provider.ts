@@ -2,11 +2,10 @@
  * AI Provider Abstraction
  *
  * Switch between Anthropic (Claude) and Ollama (local models) via env var:
- *   AI_PROVIDER=anthropic  → uses ANTHROPIC_API_KEY + ANTHROPIC_MODEL (default: claude-sonnet-4-5)
- *   AI_PROVIDER=ollama     → uses OLLAMA_BASE_URL + OLLAMA_MODEL (default: qwen2.5:1.5b)
- *
- * To switch to Claude: set AI_PROVIDER=anthropic and fill ANTHROPIC_API_KEY in .env.local
+ *   AI_PROVIDER=anthropic  → uses ANTHROPIC_API_KEY + ANTHROPIC_MODEL
+ *   AI_PROVIDER=ollama     → uses OLLAMA_BASE_URL + OLLAMA_MODEL
  */
+import Anthropic from '@anthropic-ai/sdk';
 
 export interface CompletionRequest {
   system: string;
@@ -16,25 +15,25 @@ export interface CompletionRequest {
 
 export interface CompletionResponse {
   text: string;
-  tokensUsed: number; // 0 for Ollama (free/local)
+  tokensUsed: number;
 }
 
-function getEnv(name: string): string | undefined {
-  return process.env[name];
-}
+// ─── Anthropic singleton (reuse connection pool across requests) ──────────────
 
-// ─────────────────────────────────────────────
-// Anthropic provider
-// ─────────────────────────────────────────────
-async function callAnthropic(req: CompletionRequest): Promise<CompletionResponse> {
-  const apiKey = getEnv('ANTHROPIC_API_KEY');
-  if (!apiKey) {
-    throw new Error('ANTHROPIC_API_KEY is not configured in .env.local');
+const globalForAnthropicAI = globalThis as unknown as { _anthropicClient?: Anthropic };
+
+function getAnthropicClient(): Anthropic {
+  if (!globalForAnthropicAI._anthropicClient) {
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY is not configured');
+    globalForAnthropicAI._anthropicClient = new Anthropic({ apiKey });
   }
+  return globalForAnthropicAI._anthropicClient;
+}
 
-  const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic({ apiKey });
-  const model = getEnv('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-5';
+async function callAnthropic(req: CompletionRequest): Promise<CompletionResponse> {
+  const client = getAnthropicClient();
+  const model = process.env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-5';
 
   const message = await client.messages.create({
     model,
@@ -52,15 +51,14 @@ async function callAnthropic(req: CompletionRequest): Promise<CompletionResponse
   };
 }
 
-// ─────────────────────────────────────────────
-// Ollama provider  (with 60s timeout + clear memory error)
-// ─────────────────────────────────────────────
+// ─── Ollama provider ──────────────────────────────────────────────────────────
+
 async function callOllama(req: CompletionRequest): Promise<CompletionResponse> {
-  const baseUrl = getEnv('OLLAMA_BASE_URL') ?? 'http://localhost:11434';
-  const model = getEnv('OLLAMA_MODEL') ?? 'qwen2.5:1.5b';
+  const baseUrl = process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434';
+  const model = process.env.OLLAMA_MODEL ?? 'qwen2.5:1.5b';
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000); // 60s timeout
+  const timer = setTimeout(() => controller.abort(), 60_000);
 
   try {
     const res = await fetch(`${baseUrl}/api/chat`, {
@@ -70,11 +68,7 @@ async function callOllama(req: CompletionRequest): Promise<CompletionResponse> {
       body: JSON.stringify({
         model,
         stream: false,
-        options: {
-          // Keep context smaller on low-memory machines to reduce runner crashes.
-          num_ctx: 1024,
-          num_predict: req.maxTokens ?? 1024,
-        },
+        options: { num_ctx: 1024, num_predict: req.maxTokens ?? 1024 },
         messages: [
           { role: 'system', content: req.system },
           { role: 'user', content: req.userMessage },
@@ -84,42 +78,31 @@ async function callOllama(req: CompletionRequest): Promise<CompletionResponse> {
 
     if (!res.ok) {
       const body = await res.text().catch(() => '');
-      // Surface the real Ollama error (e.g. "model requires more system memory")
       if (body.includes('memory') || body.includes('RAM')) {
         throw new Error(
-          `Not enough RAM to load ${model}. ` +
-          `Try a smaller model (e.g. qwen2.5:1.5b) or set AI_PROVIDER=anthropic.`
+          `Not enough RAM to load ${model}. Try a smaller model or set AI_PROVIDER=anthropic.`
         );
       }
       if (body.toLowerCase().includes('runner process has terminated')) {
         throw new Error(
-          `Ollama runner crashed while loading ${model}. ` +
-          `Close heavy apps/models and retry, or switch AI_PROVIDER=anthropic.`
+          `Ollama runner crashed loading ${model}. Close other models/apps and retry, or set AI_PROVIDER=anthropic.`
         );
       }
       throw new Error(`Ollama error ${res.status}: ${body}`);
     }
 
-    const data = await res.json();
-    const text: string = data?.message?.content ?? '';
-
-    return { text, tokensUsed: 0 };
+    const data = await res.json() as { message?: { content?: string } };
+    return { text: data?.message?.content ?? '', tokensUsed: 0 };
   } finally {
     clearTimeout(timer);
   }
 }
 
-// ─────────────────────────────────────────────
-// Public entry point — picks provider from env
-// ─────────────────────────────────────────────
+// ─── Public entry point ───────────────────────────────────────────────────────
+
 export async function generateCompletion(
   req: CompletionRequest,
 ): Promise<CompletionResponse> {
-  const provider = (getEnv('AI_PROVIDER') ?? 'ollama').toLowerCase();
-
-  if (provider === 'anthropic') {
-    return callAnthropic(req);
-  }
-  // default: ollama
-  return callOllama(req);
+  const provider = (process.env.AI_PROVIDER ?? 'ollama').toLowerCase();
+  return provider === 'anthropic' ? callAnthropic(req) : callOllama(req);
 }

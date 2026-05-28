@@ -3,18 +3,26 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { generateCompletion } from '@/lib/ai/provider';
 import { ARGUMENT_SUGGEST_SYSTEM } from '@/lib/ai/prompts';
-import { isAiLimitReached, logAiUsage } from '@/lib/ai/usage';
+import { checkAndLogAiUsage } from '@/lib/ai/usage';
+import { aiRateLimit } from '@/lib/ratelimit';
+
+const MAX_INPUT_LENGTH = 3000;
 
 export async function POST(req: NextRequest) {
   try {
+    const limited = await aiRateLimit(req);
+    if (limited) return limited;
+
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (await isAiLimitReached(session.user.id)) {
-      return NextResponse.json({ error: 'Daily AI limit reached' }, { status: 429 });
+    const { caseType, facts } = await req.json() as { caseType?: string; facts?: string };
+    if (!caseType || !facts) {
+      return NextResponse.json({ error: 'caseType and facts are required' }, { status: 400 });
     }
-
-    const { caseType, facts } = await req.json();
+    if (facts.length > MAX_INPUT_LENGTH) {
+      return NextResponse.json({ error: `facts too long (maximum ${MAX_INPUT_LENGTH} characters)` }, { status: 400 });
+    }
 
     const { text: responseText, tokensUsed } = await generateCompletion({
       system: ARGUMENT_SUGGEST_SYSTEM,
@@ -22,19 +30,22 @@ export async function POST(req: NextRequest) {
       maxTokens: 1024,
     });
 
-    let result: { arguments: unknown[] } = { arguments: [] };
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      const match = responseText.match(/\{[\s\S]*\}/);
-      if (match) result = JSON.parse(match[0]);
+    const { allowed } = await checkAndLogAiUsage(session.user.id, 'suggest-arguments', tokensUsed);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Daily AI limit reached (20 calls/day)' }, { status: 429 });
     }
 
-    await logAiUsage(session.user.id, 'suggest-arguments', tokensUsed);
+    let result: { arguments: unknown[] } = { arguments: [] };
+    try {
+      result = JSON.parse(responseText) as { arguments: unknown[] };
+    } catch {
+      const match = responseText.match(/\{[\s\S]*\}/);
+      if (match) result = JSON.parse(match[0]) as { arguments: unknown[] };
+    }
 
     return NextResponse.json(result);
-  } catch (err) {
-    console.error('AI suggest-arguments error:', err);
+  } catch (err: unknown) {
+    console.error('[POST /api/ai/suggest-arguments]', err);
     const message = err instanceof Error ? err.message : 'AI service unavailable';
     return NextResponse.json({ error: message }, { status: 500 });
   }
