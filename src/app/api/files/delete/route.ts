@@ -1,53 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import prisma from '@/lib/prisma';
+import { deleteFileServer } from '@/lib/cloudinary-server';
 
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { path } = await req.json();
-    if (!path) return NextResponse.json({ error: 'path required' }, { status: 400 });
+    const { documentId } = await req.json() as { documentId?: string };
+    if (!documentId) return NextResponse.json({ error: 'documentId required' }, { status: 400 });
 
-    // Extract the Cloudinary public_id from the URL and delete via Cloudinary API
-    // The path here is the full Cloudinary URL; we parse out the public_id
-    const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-    const apiKey = process.env.CLOUDINARY_API_KEY;
-    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+    // Fetch doc and verify ownership before touching Cloudinary
+    const doc = await prisma.briefDocument.findFirst({
+      where: { id: documentId },
+      include: { brief: { select: { client_id: true } } },
+    });
+    if (!doc) return NextResponse.json({ error: 'Document not found' }, { status: 404 });
 
-    if (!cloudName || !apiKey || !apiSecret) {
-      return NextResponse.json({ error: 'Cloudinary not configured' }, { status: 500 });
+    const isOwner = doc.brief.client_id === session.user.id;
+    const isAdmin = session.user.role === 'admin';
+    if (!isOwner && !isAdmin) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Extract public_id from Cloudinary URL
-    // URL format: https://res.cloudinary.com/<cloud>/image/upload/v<ver>/<folder>/<filename>
-    const match = path.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/);
+    // URL format: https://res.cloudinary.com/<cloud>/<type>/upload/v<ver>/<folder>/<filename>
+    const match = doc.url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^.]+)?$/);
     if (!match) {
-      return NextResponse.json({ error: 'Invalid file URL' }, { status: 400 });
+      return NextResponse.json({ error: 'Cannot parse document URL' }, { status: 400 });
     }
     const publicId = match[1];
 
-    const timestamp = Math.floor(Date.now() / 1000);
-    const crypto = await import('crypto');
-    const signature = crypto
-      .createHash('sha1')
-      .update(`public_id=${publicId}&timestamp=${timestamp}${apiSecret}`)
-      .digest('hex');
-
-    const formData = new URLSearchParams();
-    formData.append('public_id', publicId);
-    formData.append('timestamp', String(timestamp));
-    formData.append('api_key', apiKey);
-    formData.append('signature', signature);
-
-    await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/destroy`, {
-      method: 'POST',
-      body: formData,
-    });
+    // Delete from Cloudinary then remove DB record atomically
+    await deleteFileServer(publicId);
+    await prisma.briefDocument.delete({ where: { id: documentId } });
 
     return NextResponse.json({ ok: true });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('[DELETE /api/files/delete]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
