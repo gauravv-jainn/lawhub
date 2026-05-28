@@ -8,23 +8,37 @@ export default async function AdminDashboard() {
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.role !== 'admin') redirect('/auth/login');
 
-  const oneDayAgo = new Date(Date.now() - 86400000);
+  const oneDayAgo = new Date(Date.now() - 86_400_000);
 
-  const [profiles, lawyers, briefs, bidsToday, payments] = await Promise.all([
-    prisma.user.findMany({ select: { role: true } }),
-    prisma.lawyerProfile.findMany({ select: { verification_status: true } }),
-    prisma.brief.findMany({ select: { status: true } }),
+  // Use SQL COUNT/AGGREGATE — never fetch full tables into memory
+  const [
+    totalClients,
+    totalLawyers,
+    verifiedLawyers,
+    pendingLawyers,
+    openBriefs,
+    bidsToday,
+    revenueResult,
+    gmvResult,
+  ] = await Promise.all([
+    prisma.user.count({ where: { role: 'client' } }),
+    prisma.lawyerProfile.count(),
+    prisma.lawyerProfile.count({ where: { verification_status: 'verified' } }),
+    prisma.lawyerProfile.count({ where: { verification_status: 'pending' } }),
+    prisma.brief.count({ where: { status: 'open' } }),
     prisma.bid.count({ where: { created_at: { gte: oneDayAgo } } }),
-    prisma.payment.findMany({ select: { amount: true, platform_fee: true, status: true } }),
+    prisma.payment.aggregate({
+      where: { status: 'released' },
+      _sum: { platform_fee: true },
+    }),
+    prisma.payment.aggregate({
+      where: { status: { not: 'refunded' } },
+      _sum: { amount: true },
+    }),
   ]);
 
-  const totalClients = profiles.filter(p => p.role === 'client').length;
-  const totalLawyers = lawyers.length;
-  const verifiedLawyers = lawyers.filter(l => l.verification_status === 'verified').length;
-  const pendingLawyers = lawyers.filter(l => l.verification_status === 'pending').length;
-  const openBriefs = briefs.filter(b => b.status === 'open').length;
-  const totalRevenue = payments.filter(p => p.status === 'released').reduce((s: number, p: any) => s + (p.platform_fee ?? 0), 0);
-  const gmv = payments.filter(p => p.status !== 'refunded').reduce((s, p) => s + p.amount, 0);
+  const totalRevenue = revenueResult._sum.platform_fee ?? 0;
+  const gmv = gmvResult._sum.amount ?? 0;
 
   const stats = [
     { label: 'Total Clients', value: totalClients, color: 'var(--teal)' },
