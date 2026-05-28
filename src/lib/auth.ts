@@ -22,7 +22,7 @@ export const authOptions: NextAuthOptions = {
           : 'next-auth.session-token',
       options: {
         httpOnly: true,
-        sameSite: 'strict',
+        sameSite: 'lax', // 'strict' breaks credentials redirect — cookie not sent on post-login navigation
         path: '/',
         secure: process.env.NODE_ENV === 'production',
       },
