@@ -1,15 +1,13 @@
 'use client'
 
-import { create } from 'zustand'
+import { create, type StateCreator } from 'zustand'
 import { devtools } from 'zustand/middleware'
 import type { Profile, AppNotification } from '@/types'
 
 interface AppState {
-  // Auth
   profile: Profile | null
   setProfile: (profile: Profile | null) => void
 
-  // Notifications
   notifications: AppNotification[]
   unreadCount: number
   setNotifications: (notifications: AppNotification[]) => void
@@ -17,64 +15,59 @@ interface AppState {
   markNotificationRead: (id: string) => void
   markAllNotificationsRead: () => void
 
-  // UI
   sidebarOpen: boolean
   setSidebarOpen: (open: boolean) => void
   toggleSidebar: () => void
 
-  // AI loading states
   aiLoading: Record<string, boolean>
   setAILoading: (key: string, loading: boolean) => void
 }
 
-export const useAppStore = create<AppState>()(
-  devtools(
-    (set) => ({
-      // Auth
-      profile: null,
-      setProfile: (profile) => set({ profile }),
+const storeImpl: StateCreator<AppState> = (set) => ({
+  profile: null as Profile | null,
+  setProfile: (profile: Profile | null) => set({ profile }),
 
-      // Notifications
-      notifications: [],
-      unreadCount: 0,
-      setNotifications: (notifications) =>
-        set({
-          notifications,
-          unreadCount: notifications.filter((n) => !n.is_read).length,
-        }),
-      addNotification: (notification) =>
-        set((state) => ({
-          notifications: [notification, ...state.notifications],
-          unreadCount: state.unreadCount + (notification.is_read ? 0 : 1),
-        })),
-      markNotificationRead: (id) =>
-        set((state) => {
-          const notifications = state.notifications.map((n) =>
-            n.id === id ? { ...n, is_read: true } : n
-          )
-          return {
-            notifications,
-            unreadCount: notifications.filter((n) => !n.is_read).length,
-          }
-        }),
-      markAllNotificationsRead: () =>
-        set((state) => ({
-          notifications: state.notifications.map((n) => ({ ...n, is_read: true })),
-          unreadCount: 0,
-        })),
-
-      // UI
-      sidebarOpen: false,
-      setSidebarOpen: (open) => set({ sidebarOpen: open }),
-      toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-
-      // AI loading
-      aiLoading: {},
-      setAILoading: (key, loading) =>
-        set((state) => ({
-          aiLoading: { ...state.aiLoading, [key]: loading },
-        })),
+  notifications: [] as AppNotification[],
+  unreadCount: 0,
+  setNotifications: (notifications: AppNotification[]) =>
+    set({
+      notifications,
+      unreadCount: notifications.filter((n) => !n.is_read).length,
     }),
-    { name: 'lawhub-store' }
-  )
-)
+  addNotification: (notification: AppNotification) =>
+    set((state) => ({
+      notifications: [notification, ...state.notifications],
+      unreadCount: state.unreadCount + (notification.is_read ? 0 : 1),
+    })),
+  markNotificationRead: (id: string) =>
+    set((state) => {
+      const notifications = state.notifications.map((n) =>
+        n.id === id ? { ...n, is_read: true } : n
+      )
+      return {
+        notifications,
+        unreadCount: notifications.filter((n) => !n.is_read).length,
+      }
+    }),
+  markAllNotificationsRead: () =>
+    set((state) => ({
+      notifications: state.notifications.map((n) => ({ ...n, is_read: true })),
+      unreadCount: 0,
+    })),
+
+  sidebarOpen: false,
+  setSidebarOpen: (open: boolean) => set({ sidebarOpen: open }),
+  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
+
+  aiLoading: {} as Record<string, boolean>,
+  setAILoading: (key: string, loading: boolean) =>
+    set((state) => ({
+      aiLoading: { ...state.aiLoading, [key]: loading },
+    })),
+})
+
+// Devtools only in development — never expose state to Redux DevTools in production
+export const useAppStore =
+  process.env.NODE_ENV === 'development'
+    ? create<AppState>()(devtools(storeImpl, { name: 'lawhub-store' }))
+    : create<AppState>()(storeImpl)

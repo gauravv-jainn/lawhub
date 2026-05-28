@@ -44,6 +44,7 @@ export const briefStep2Schema = z.object({
 });
 
 export const bidSubmitSchema = z.object({
+  brief_id: z.string().min(1, 'brief_id is required'),
   proposed_fee: z.coerce.number().min(1000, 'Minimum fee is ₹1,000'),
   fee_structure: z.enum(['flat', 'milestone', 'retainer', 'hourly']),
   milestone_count: z.coerce.number().min(1).max(10).optional(),
@@ -72,3 +73,4 @@ export type BriefStep1Data = z.infer<typeof briefStep1Schema>;
 export type BriefStep2Data = z.infer<typeof briefStep2Schema>;
 export type BidSubmitData = z.infer<typeof bidSubmitSchema>;
 export type LoginData = z.infer<typeof loginSchema>;
+export type ReviewData = z.infer<typeof reviewSchema>;
