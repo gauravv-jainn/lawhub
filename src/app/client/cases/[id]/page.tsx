@@ -4,11 +4,11 @@ import prisma from '@/lib/prisma';
 import { redirect, notFound } from 'next/navigation';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
-import { formatDate, formatRelativeTime } from '@/lib/utils/formatDate';
-import MessageThread from './MessageThread';
+import { formatDate } from '@/lib/utils/formatDate';
 import ReviewForm from '@/components/shared/ReviewForm';
 import MilestonePanel from './MilestonePanel';
 import CaseActions from './CaseActions';
+import CaseActivityStream from '@/components/shared/CaseActivityStream';
 
 export default async function ClientCaseDetailPage({
   params,
@@ -192,7 +192,7 @@ export default async function ClientCaseDetailPage({
             disputeActive={!!c.dispute}
           />
 
-          {/* Timeline */}
+          {/* Unified Activity Stream */}
           <div
             style={{
               background: 'white',
@@ -210,108 +210,15 @@ export default async function ClientCaseDetailPage({
                 marginBottom: '20px',
               }}
             >
-              Case Timeline
+              Case Activity
             </h2>
-            <div style={{ position: 'relative' }}>
-              {events.map((event, i) => (
-                <div
-                  key={event.id}
-                  style={{
-                    display: 'flex',
-                    gap: '14px',
-                    paddingBottom: i < events.length - 1 ? '20px' : '0',
-                    position: 'relative',
-                  }}
-                >
-                  {i < events.length - 1 && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: '11px',
-                        top: '24px',
-                        bottom: 0,
-                        width: '1px',
-                        background: 'rgba(14,12,10,0.1)',
-                      }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      width: '24px',
-                      height: '24px',
-                      borderRadius: '50%',
-                      background: 'var(--cream)',
-                      border: '2px solid rgba(14,12,10,0.12)',
-                      flexShrink: 0,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '10px',
-                    }}
-                  >
-                    ·
-                  </div>
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '13px',
-                        fontWeight: 500,
-                        color: 'var(--ink)',
-                        marginBottom: '2px',
-                      }}
-                    >
-                      {event.title}
-                    </div>
-                    {event.description && (
-                      <div
-                        style={{
-                          fontSize: '12px',
-                          color: 'rgba(14,12,10,0.5)',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        {event.description}
-                      </div>
-                    )}
-                    <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.35)' }}>
-                      {formatRelativeTime(event.created_at.toISOString())}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {events.length === 0 && (
-                <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.4)' }}>
-                  No timeline events yet.
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div
-            style={{
-              background: 'white',
-              border: '1px solid rgba(14,12,10,0.08)',
-              borderRadius: '12px',
-              padding: '24px',
-            }}
-          >
-            <h2
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '18px',
-                fontWeight: 600,
-                color: 'var(--ink)',
-                marginBottom: '20px',
-              }}
-            >
-              Messages
-            </h2>
-            <MessageThread
+            <CaseActivityStream
               caseId={params.id}
               userId={userId}
               userRole="client"
-              initialMessages={messages as any}
+              initialEvents={events.map((e) => ({ ...e, created_at: e.created_at.toISOString() }))}
+              initialMessages={messages.map((m) => ({ ...m, created_at: m.created_at.toISOString() }))}
+              disabled={['completed', 'cancelled'].includes(c.status)}
             />
           </div>
         </div>

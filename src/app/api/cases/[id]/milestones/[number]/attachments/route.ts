@@ -1,22 +1,24 @@
 /**
  * POST   /api/cases/[id]/milestones/[number]/attachments
- * DELETE /api/cases/[id]/milestones/[number]/attachments/[attachmentId]
+ * DELETE /api/cases/[id]/milestones/[number]/attachments
  *
  * POST: Upload a file attachment to a milestone.
- *   - Lawyer can attach on any non-paid/non-cancelled milestone.
- *   - Client can attach on submitted milestones (to provide context).
- *   - Expects multipart/form-data with field "file".
- *   - Uses Cloudinary for storage (server-side upload).
+ *   - Files uploaded as Cloudinary "authenticated" type (signed URL required to access).
+ *   - public_id, file_size, and mime_type stored for secure download and cleanup.
+ *
+ * DELETE: Remove an attachment.
+ *   - Also deletes the file from Cloudinary.
+ *   - Only the uploader or the case lawyer can delete.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
-import { uploadFileServer } from '@/lib/cloudinary-server';
+import { uploadFileSecure, deleteFileSecure } from '@/lib/cloudinary-server';
 export const dynamic = 'force-dynamic';
 
-const ALLOWED_TYPES = [
+const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'image/jpeg',
   'image/png',
@@ -24,9 +26,13 @@ const ALLOWED_TYPES = [
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
   'text/plain',
-];
-const MAX_SIZE_MB = 10;
+]);
+
+const MAX_SIZE_MB    = 10;
 const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+const MAX_PER_MILESTONE = 10;
+
+// ─── POST — Upload ────────────────────────────────────────────────────────────
 
 export async function POST(
   req: NextRequest,
@@ -36,7 +42,9 @@ export async function POST(
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const milestoneNumber = parseInt(params.number, 10);
-  if (isNaN(milestoneNumber)) return NextResponse.json({ error: 'Invalid milestone number.' }, { status: 400 });
+  if (isNaN(milestoneNumber)) {
+    return NextResponse.json({ error: 'Invalid milestone number.' }, { status: 400 });
+  }
 
   // Verify case membership
   const caseRow = await prisma.case.findFirst({
@@ -60,18 +68,16 @@ export async function POST(
     return NextResponse.json({ error: 'Cannot upload to a paid or cancelled milestone.' }, { status: 400 });
   }
 
-  // Role-based upload permissions
-  const isLawyer  = session.user.id === caseRow.lawyer_id;
-  const isClient  = session.user.id === caseRow.client_id;
+  // Role-based permissions
+  const isLawyer = session.user.id === caseRow.lawyer_id;
+  const isClient = session.user.id === caseRow.client_id;
 
-  // Clients can only attach when milestone is submitted (providing context for review)
   if (isClient && !['submitted', 'disputed'].includes(milestone.status)) {
     return NextResponse.json(
       { error: 'Clients can only upload attachments to submitted or disputed milestones.' },
       { status: 403 }
     );
   }
-  // Lawyers can attach in any active state
   if (isLawyer && ['approved', 'paid'].includes(milestone.status)) {
     return NextResponse.json(
       { error: 'Cannot upload attachments to an approved or paid milestone.' },
@@ -90,9 +96,10 @@ export async function POST(
   const file = formData.get('file') as File | null;
   if (!file) return NextResponse.json({ error: 'No file provided.' }, { status: 400 });
 
-  if (!ALLOWED_TYPES.includes(file.type)) {
+  // MIME validation (both header and extension sniff)
+  if (!ALLOWED_MIME_TYPES.has(file.type)) {
     return NextResponse.json(
-      { error: `File type not allowed. Accepted: PDF, images, Word documents, text files.` },
+      { error: 'File type not allowed. Accepted: PDF, JPEG, PNG, WebP, Word (.doc/.docx), plain text.' },
       { status: 400 }
     );
   }
@@ -104,22 +111,29 @@ export async function POST(
     );
   }
 
-  // Check attachment count limit
+  if (file.size === 0) {
+    return NextResponse.json({ error: 'File is empty.' }, { status: 400 });
+  }
+
+  // Attachment count limit
   const existingCount = await prisma.milestoneAttachment.count({
     where: { milestone_id: milestone.id },
   });
-  if (existingCount >= 10) {
-    return NextResponse.json({ error: 'Maximum 10 attachments per milestone.' }, { status: 400 });
+  if (existingCount >= MAX_PER_MILESTONE) {
+    return NextResponse.json(
+      { error: `Maximum ${MAX_PER_MILESTONE} attachments per milestone.` },
+      { status: 400 }
+    );
   }
 
-  // Upload to Cloudinary
+  // Upload to Cloudinary (authenticated — requires signed URL to access)
   const arrayBuffer = await file.arrayBuffer();
   const buffer      = Buffer.from(arrayBuffer);
 
   let uploadResult: { url: string; publicId: string };
   try {
     const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
-    uploadResult = await uploadFileServer(
+    uploadResult = await uploadFileSecure(
       buffer,
       safeName,
       `lawhub/cases/${params.id}/milestones/${milestoneNumber}`
@@ -134,13 +148,18 @@ export async function POST(
     data: {
       milestone_id: milestone.id,
       name:         file.name,
-      url:          uploadResult.url,
+      url:          uploadResult.url,  // stored but not served directly
+      public_id:    uploadResult.publicId,
+      file_size:    file.size,
+      mime_type:    file.type,
       uploaded_by:  session.user.id,
     },
   });
 
   return NextResponse.json({ attachment }, { status: 201 });
 }
+
+// ─── DELETE — Remove ──────────────────────────────────────────────────────────
 
 export async function DELETE(
   req: NextRequest,
@@ -168,12 +187,23 @@ export async function DELETE(
       id: attachmentId,
       milestone: { case_id_number: { case_id: params.id, number: milestoneNumber } },
     },
+    select: { id: true, public_id: true, uploaded_by: true },
   });
   if (!attachment) return NextResponse.json({ error: 'Attachment not found.' }, { status: 404 });
 
-  // Only the uploader or the lawyer can delete
+  // Only uploader or case lawyer can delete
   if (attachment.uploaded_by !== session.user.id && caseRow.lawyer_id !== session.user.id) {
     return NextResponse.json({ error: 'You can only delete your own attachments.' }, { status: 403 });
+  }
+
+  // Delete from Cloudinary first (fire-and-forget if it fails — record still removed from DB)
+  if (attachment.public_id) {
+    try {
+      await deleteFileSecure(attachment.public_id);
+    } catch (err) {
+      console.error('[milestone/attachments DELETE] Cloudinary delete failed:', err);
+      // Continue — remove from DB regardless
+    }
   }
 
   await prisma.milestoneAttachment.delete({ where: { id: attachmentId } });

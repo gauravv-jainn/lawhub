@@ -46,10 +46,12 @@ export const briefStep1Schema = z.object({
 });
 
 export const briefStep2Schema = z.object({
-  description: z.string().min(50, 'Please describe your issue in at least 50 characters'),
+  description: z.string()
+    .min(100, 'Please describe your issue in at least 100 characters — include background, what happened, and what you need')
+    .max(8000, 'Description cannot exceed 8000 characters'),
   budget_min: z.coerce.number().min(500_000, 'Minimum budget is ₹5,000'),
   budget_max: z.coerce.number().min(500_000, 'Maximum budget must be at least ₹5,000'),
-  pro_bono: z.boolean().optional().default(false),
+  pro_bono:  z.boolean().optional().default(false),
 });
 
 export const briefEditSchema = z.object({
@@ -64,15 +66,24 @@ export const briefEditSchema = z.object({
 // ─── Proposals (formerly Bids) ────────────────────────────────────────────────
 
 export const proposalSubmitSchema = z.object({
-  brief_id: z.string().min(1, 'brief_id is required'),
-  proposed_fee: z.coerce.number().min(1_000, 'Minimum fee is ₹1,000'),
-  fee_structure: z.enum(['flat', 'milestone', 'retainer', 'hourly']),
+  brief_id:   z.string().min(1, 'brief_id is required'),
+  proposed_fee: z.coerce.number()
+    .min(500_000,   'Minimum fee is ₹5,000')
+    .max(100_000_000, 'Maximum fee is ₹10,00,000'),
+  fee_structure:   z.enum(['flat', 'milestone', 'retainer', 'hourly']),
   milestone_count: z.coerce.number().min(1).max(10).default(1),
-  strategy_text: z.string().min(100, 'Strategy must be at least 100 characters'),
-  cover_letter: z.string().min(50, 'Cover letter must be at least 50 characters'),
-  relevant_experience: z.string().optional(),
-  availability: z.string().min(1, 'Select availability'),
-  estimated_timeline: z.string().min(1, 'Provide an estimated timeline'),
+  strategy_text: z.string()
+    .min(200, 'Strategy must be at least 200 characters — describe your approach in detail')
+    .max(5000, 'Strategy cannot exceed 5000 characters'),
+  cover_letter: z.string()
+    .min(100, 'Cover letter must be at least 100 characters — explain why you are the right advocate')
+    .max(3000, 'Cover letter cannot exceed 3000 characters'),
+  relevant_experience: z.string()
+    .min(30, 'Describe relevant experience (min 30 characters)')
+    .max(2000, 'Experience cannot exceed 2000 characters')
+    .optional(),
+  availability:       z.string().min(1, 'Select availability'),
+  estimated_timeline: z.string().min(3, 'Provide an estimated timeline'),
 });
 
 // ─── Milestones ───────────────────────────────────────────────────────────────

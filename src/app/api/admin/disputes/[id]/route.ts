@@ -14,6 +14,7 @@ import prisma from '@/lib/prisma';
 import { disputeResolveSchema } from '@/lib/utils/validators';
 import { notify } from '@/lib/notifications';
 import { issueRazorpayRefund } from '@/lib/razorpay';
+import { appendLedger, LedgerEvent } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 // ─── GET ─────────────────────────────────────────────────────────────────────
@@ -88,22 +89,45 @@ export async function PATCH(
 
   // ── assign — admin takes ownership ──────────────────────────────────────
   if (action === 'assign') {
-    await prisma.dispute.update({
-      where: { id: params.id },
-      data: {
-        admin_id: session.user.id,
-        status: 'under_review',
-        updated_at: new Date(),
-      },
+    // Fetch held payments to freeze in ledger
+    const heldPayments = await prisma.payment.findMany({
+      where: { case_id: dispute.case_id, status: 'held' },
+      select: { id: true, amount: true, milestone_id: true },
     });
 
-    await prisma.adminLog.create({
-      data: {
-        admin_id:    session.user.id,
-        action:      'assign_dispute',
-        target_id:   params.id,
-        target_type: 'dispute',
-      },
+    await prisma.$transaction(async (tx) => {
+      await (tx as any).dispute.update({
+        where: { id: params.id },
+        data: {
+          admin_id:   session.user.id,
+          status:     'under_review',
+          updated_at: new Date(),
+        },
+      });
+
+      // Ledger: freeze escrow entries for all held payments (informational)
+      for (const pmt of heldPayments) {
+        await appendLedger({
+          tx,
+          paymentId:   pmt.id,
+          caseId:      dispute.case_id,
+          milestoneId: pmt.milestone_id,
+          disputeId:   params.id,
+          actorId:     session.user.id,
+          eventType:   LedgerEvent.DISPUTE_FROZEN,
+          amount:      pmt.amount,
+          metadata:    { admin_id: session.user.id },
+        });
+      }
+
+      await (tx as any).adminLog.create({
+        data: {
+          admin_id:    session.user.id,
+          action:      'assign_dispute',
+          target_id:   params.id,
+          target_type: 'dispute',
+        },
+      });
     });
 
     return NextResponse.json({ ok: true });
@@ -247,8 +271,100 @@ export async function PATCH(
         }
       }
 
-      // 4. Record case event
-      await tx.caseEvent.create({
+      // 4. Ledger entries for resolution
+      for (const pmt of heldPayments) {
+        if (resolution === 'resolved_client') {
+          // Full refund — entire escrow balance goes to client
+          await appendLedger({
+            tx,
+            paymentId:   pmt.id,
+            caseId:      dispute.case_id,
+            milestoneId: pmt.milestone_id,
+            disputeId:   params.id,
+            actorId:     session.user.id,
+            eventType:   LedgerEvent.FULL_REFUND,
+            amount:      pmt.amount,
+            metadata:    { resolution, resolution_note },
+          });
+
+        } else if (resolution === 'resolved_lawyer' || resolution === 'settled') {
+          // Full release to lawyer
+          const tds = pmt.amount >= 3_000_000 ? Math.round(pmt.amount * 0.10) : 0;
+          await appendLedger({
+            tx,
+            paymentId:   pmt.id,
+            caseId:      dispute.case_id,
+            milestoneId: pmt.milestone_id,
+            disputeId:   params.id,
+            actorId:     session.user.id,
+            eventType:   LedgerEvent.MILESTONE_RELEASED,
+            amount:      pmt.amount,
+            metadata:    { resolution, tds_applicable: pmt.amount >= 3_000_000 },
+          });
+          if (tds > 0) {
+            await appendLedger({
+              tx,
+              paymentId:   pmt.id,
+              caseId:      dispute.case_id,
+              milestoneId: pmt.milestone_id,
+              disputeId:   params.id,
+              actorId:     session.user.id,
+              eventType:   LedgerEvent.TDS_DEDUCTED,
+              amount:      tds,
+              metadata:    { section: '194J', rate: '10%' },
+            });
+          }
+
+        } else if (resolution === 'partial_refund') {
+          const refundAmount  = Math.round(pmt.amount * (refundPct / 100));
+          const releaseAmount = pmt.amount - refundAmount;
+          // Client's share goes back
+          if (refundAmount > 0) {
+            await appendLedger({
+              tx,
+              paymentId:   pmt.id,
+              caseId:      dispute.case_id,
+              milestoneId: pmt.milestone_id,
+              disputeId:   params.id,
+              actorId:     session.user.id,
+              eventType:   LedgerEvent.PARTIAL_REFUND,
+              amount:      refundAmount,
+              metadata:    { refund_pct: refundPct, resolution },
+            });
+          }
+          // Lawyer's remaining share released
+          if (releaseAmount > 0) {
+            await appendLedger({
+              tx,
+              paymentId:   pmt.id,
+              caseId:      dispute.case_id,
+              milestoneId: pmt.milestone_id,
+              disputeId:   params.id,
+              actorId:     session.user.id,
+              eventType:   LedgerEvent.MILESTONE_RELEASED,
+              amount:      releaseAmount,
+              metadata:    { release_pct: 100 - refundPct, resolution },
+            });
+          }
+        }
+      }
+
+      // 5. Informational: dispute resolved marker (only if payments exist)
+      if (heldPayments[0]) {
+        await appendLedger({
+          tx,
+          paymentId:   heldPayments[0].id,
+          caseId:      dispute.case_id,
+          disputeId:   params.id,
+          actorId:     session.user.id,
+          eventType:   LedgerEvent.DISPUTE_RESOLVED,
+          amount:      heldPayments[0].amount,
+          metadata:    { resolution, resolution_note, refund_pct: resolution === 'partial_refund' ? refundPct : null },
+        });
+      }
+
+      // 6. Record case event
+      await (tx as any).caseEvent.create({
         data: {
           case_id:    dispute.case_id,
           actor_id:   session.user.id,

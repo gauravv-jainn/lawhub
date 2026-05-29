@@ -16,7 +16,7 @@ const clientNav: NavItem[] = [
   { label: 'My Briefs',     href: '/client/briefs',       icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { label: 'Active Cases',  href: '/client/cases',        icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { label: 'Payments',      href: '/client/payments',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><path d="M1 6.5h14" stroke="currentColor" strokeWidth="1.5"/><circle cx="4.5" cy="9.5" r="1" fill="currentColor"/></svg> },
-  { label: 'Find Advocates',href: '/client/find-lawyers', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.5"/><path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Find Advocates',href: '/lawyers',             icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.5"/><path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
 
 const lawyerNav: NavItem[] = [

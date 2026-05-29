@@ -22,32 +22,60 @@ const SORT_OPTIONS = [
   { value: 'urgent', label: 'Most Urgent' },
 ];
 
+// Budget bracket options (in paise → display in ₹)
+const BUDGET_BRACKETS = [
+  { value: '', label: 'Any Budget' },
+  { value: '0-5000000', label: 'Up to ₹50K' },
+  { value: '5000000-10000000', label: '₹50K – ₹1L' },
+  { value: '10000000-30000000', label: '₹1L – ₹3L' },
+  { value: '30000000-100000000', label: '₹3L – ₹10L' },
+  { value: '100000000-', label: '₹10L+' },
+];
+
 export default function BriefBrowser({ briefs, biddedBriefIds, lawyerId, lawyerName }: Props) {
-  const [search, setSearch] = useState('');
+  const [search, setSearch]               = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [urgencyFilter, setUrgencyFilter] = useState('');
-  const [sort, setSort] = useState('newest');
+  const [urgencyFilter, setUrgencyFilter]   = useState('');
+  const [budgetFilter, setBudgetFilter]     = useState('');
+  const [stateFilter, setStateFilter]       = useState('');
+  const [hideProposed, setHideProposed]     = useState(false);
+  const [sort, setSort]                   = useState('newest');
   const [selectedBrief, setSelectedBrief] = useState<Brief | null>(null);
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedId, setExpandedId]       = useState<string | null>(null);
+
+  const categories = [...new Set(briefs.map(b => b.category))].sort();
+  const states     = [...new Set(briefs.map(b => (b as any).state).filter(Boolean))].sort();
 
   const filtered = briefs
     .filter(b => {
-      if (search && !b.title.toLowerCase().includes(search.toLowerCase()) && !b.description.toLowerCase().includes(search.toLowerCase())) return false;
+      if (hideProposed && biddedBriefIds.has(b.id)) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!b.title.toLowerCase().includes(q) && !b.description.toLowerCase().includes(q)) return false;
+      }
       if (categoryFilter && b.category !== categoryFilter) return false;
-      if (urgencyFilter && b.urgency !== urgencyFilter) return false;
+      if (urgencyFilter  && b.urgency  !== urgencyFilter)  return false;
+      if (stateFilter    && (b as any).state !== stateFilter) return false;
+      if (budgetFilter) {
+        const [minStr, maxStr] = budgetFilter.split('-');
+        const minVal = Number(minStr);
+        const maxVal = maxStr ? Number(maxStr) : Infinity;
+        if (b.budget_max < minVal) return false;
+        if (maxVal !== Infinity && b.budget_min > maxVal) return false;
+      }
       return true;
     })
     .sort((a, b) => {
       if (sort === 'fewest_bids') return a.bid_count - b.bid_count;
       if (sort === 'budget_high') return b.budget_max - a.budget_max;
       if (sort === 'urgent') {
-        const urgencyOrder = { emergency: 0, urgent: 1, standard: 2 };
-        return urgencyOrder[a.urgency] - urgencyOrder[b.urgency];
+        const urgencyOrder: Record<string, number> = { emergency: 0, urgent: 1, standard: 2 };
+        return (urgencyOrder[a.urgency] ?? 2) - (urgencyOrder[b.urgency] ?? 2);
       }
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
-  const categories = [...new Set(briefs.map(b => b.category))];
+  const activeFilters = [categoryFilter, urgencyFilter, budgetFilter, stateFilter, search].filter(Boolean).length + (hideProposed ? 1 : 0);
 
   return (
     <div className="page-container">
@@ -60,33 +88,65 @@ export default function BriefBrowser({ briefs, biddedBriefIds, lawyerId, lawyerN
         </p>
       </div>
 
-      {/* Filters bar */}
-      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '24px' }}>
+      {/* Filters bar — row 1: search + sort */}
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
         <input
           value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search briefs…"
+          placeholder="Search title or description…"
           style={{
             flex: 1, minWidth: '200px', padding: '9px 12px', border: '1px solid rgba(14,12,10,0.15)',
             borderRadius: '8px', fontSize: '13px', background: 'white', outline: 'none',
           }}
         />
-        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+        <select value={sort} onChange={e => setSort(e.target.value)}
           style={{ padding: '9px 12px', border: '1px solid rgba(14,12,10,0.15)', borderRadius: '8px', fontSize: '13px', background: 'white', outline: 'none' }}>
+          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      </div>
+
+      {/* Filters bar — row 2: facet filters */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px', alignItems: 'center' }}>
+        <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
+          style={{ padding: '7px 10px', border: categoryFilter ? '1px solid var(--teal)' : '1px solid rgba(14,12,10,0.15)', borderRadius: '7px', fontSize: '12px', background: 'white', outline: 'none' }}>
           <option value="">All Categories</option>
           {categories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+
         <select value={urgencyFilter} onChange={e => setUrgencyFilter(e.target.value)}
-          style={{ padding: '9px 12px', border: '1px solid rgba(14,12,10,0.15)', borderRadius: '8px', fontSize: '13px', background: 'white', outline: 'none' }}>
+          style={{ padding: '7px 10px', border: urgencyFilter ? '1px solid var(--teal)' : '1px solid rgba(14,12,10,0.15)', borderRadius: '7px', fontSize: '12px', background: 'white', outline: 'none' }}>
           <option value="">All Urgency</option>
           <option value="emergency">Emergency</option>
           <option value="urgent">Urgent</option>
           <option value="standard">Standard</option>
         </select>
-        <select value={sort} onChange={e => setSort(e.target.value)}
-          style={{ padding: '9px 12px', border: '1px solid rgba(14,12,10,0.15)', borderRadius: '8px', fontSize: '13px', background: 'white', outline: 'none' }}>
-          {SORT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+
+        <select value={budgetFilter} onChange={e => setBudgetFilter(e.target.value)}
+          style={{ padding: '7px 10px', border: budgetFilter ? '1px solid var(--teal)' : '1px solid rgba(14,12,10,0.15)', borderRadius: '7px', fontSize: '12px', background: 'white', outline: 'none' }}>
+          {BUDGET_BRACKETS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
         </select>
+
+        {states.length > 1 && (
+          <select value={stateFilter} onChange={e => setStateFilter(e.target.value)}
+            style={{ padding: '7px 10px', border: stateFilter ? '1px solid var(--teal)' : '1px solid rgba(14,12,10,0.15)', borderRadius: '7px', fontSize: '12px', background: 'white', outline: 'none' }}>
+            <option value="">All States</option>
+            {states.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        )}
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'rgba(14,12,10,0.6)', cursor: 'pointer', padding: '7px 10px', border: hideProposed ? '1px solid var(--teal)' : '1px solid rgba(14,12,10,0.12)', borderRadius: '7px', background: hideProposed ? 'rgba(13,115,119,0.06)' : 'transparent' }}>
+          <input type="checkbox" checked={hideProposed} onChange={e => setHideProposed(e.target.checked)} style={{ margin: 0 }} />
+          Hide proposed
+        </label>
+
+        {activeFilters > 0 && (
+          <button
+            onClick={() => { setSearch(''); setCategoryFilter(''); setUrgencyFilter(''); setBudgetFilter(''); setStateFilter(''); setHideProposed(false); }}
+            style={{ padding: '7px 12px', borderRadius: '7px', fontSize: '12px', background: 'rgba(14,12,10,0.06)', border: 'none', cursor: 'pointer', color: 'var(--ink)' }}
+          >
+            Clear {activeFilters} filter{activeFilters !== 1 ? 's' : ''}
+          </button>
+        )}
       </div>
 
       {/* Brief cards */}
