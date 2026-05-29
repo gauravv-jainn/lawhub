@@ -48,6 +48,37 @@ export async function POST(req: NextRequest) {
     estimated_timeline,
   } = parsed.data;
 
+  // ── Rate limit: max 5 proposals per 24 hours ─────────────────────────────
+  const recentCount = await prisma.proposal.count({
+    where: {
+      lawyer_id:  session.user.id,
+      created_at: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+  });
+  if (recentCount >= 5) {
+    return NextResponse.json(
+      { error: 'You can submit a maximum of 5 proposals per 24 hours. Please review and personalise before resubmitting.' },
+      { status: 429 }
+    );
+  }
+
+  // ── Duplicate cover letter detection (copy-paste spam prevention) ────────
+  const recentProposals = await prisma.proposal.findMany({
+    where: { lawyer_id: session.user.id },
+    orderBy: { created_at: 'desc' },
+    take: 5,
+    select: { cover_letter: true, brief_id: true },
+  });
+  const isDuplicateLetter = recentProposals.some(
+    (p) => p.brief_id !== brief_id && p.cover_letter.trim() === cover_letter.trim()
+  );
+  if (isDuplicateLetter) {
+    return NextResponse.json(
+      { error: 'Your cover letter appears identical to a previous proposal. Please personalise it for this brief to show genuine interest.' },
+      { status: 400 }
+    );
+  }
+
   // Brief must exist, be open, and not expired
   const brief = await prisma.brief.findFirst({
     where: {

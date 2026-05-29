@@ -74,28 +74,48 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger }) {
       // Initial sign-in: populate token from user object
       if (user) {
-        token.id = user.id;
-        token.role = (user as { id: string; role: UserRole }).role;
+        token.id         = user.id;
+        token.role       = (user as { id: string; role: UserRole }).role;
+        token.suspended  = false;
+        token.checkedAt  = Date.now();
       }
 
-      // On explicit session update (trigger === 'update'): re-fetch role from DB
-      // to pick up any role changes made since last login
+      // On explicit session update (trigger === 'update'): re-fetch role + suspension from DB
       if (trigger === 'update' && token.id) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: token.id as string },
-          select: { role: true },
+          where:  { id: token.id as string },
+          select: { role: true, suspended: true },
         });
         if (dbUser) {
-          token.role = dbUser.role as UserRole;
+          token.role      = dbUser.role as UserRole;
+          token.suspended = dbUser.suspended;
+          token.checkedAt = Date.now();
         }
+      }
+
+      // Periodic DB re-check: verify suspension status at most once per 60 seconds.
+      // This ensures a suspension takes effect within 1 minute rather than waiting
+      // for the full 4-hour JWT maxAge to expire.
+      const lastCheck = (token.checkedAt as number | undefined) ?? 0;
+      if (token.id && Date.now() - lastCheck > 60_000) {
+        const dbUser = await prisma.user.findUnique({
+          where:  { id: token.id as string },
+          select: { suspended: true, role: true },
+        });
+        if (dbUser) {
+          token.suspended = dbUser.suspended;
+          token.role      = dbUser.role as UserRole;
+        }
+        token.checkedAt = Date.now();
       }
 
       return token;
     },
     async session({ session, token }) {
       if (token) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
+        session.user.id        = token.id as string;
+        session.user.role      = token.role as UserRole;
+        session.user.suspended = token.suspended as boolean | undefined;
       }
       return session;
     },

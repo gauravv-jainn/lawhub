@@ -6,6 +6,7 @@ import Link from 'next/link';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
 import { formatRelativeTime } from '@/lib/utils/formatDate';
+import ClientOnboarding from '@/components/shared/ClientOnboarding';
 
 export default async function ClientDashboard() {
   const session = await getServerSession(authOptions);
@@ -38,6 +39,11 @@ export default async function ClientDashboard() {
   const totalSpent = payments.filter(p => p.status === 'released').reduce((sum, p) => sum + p.amount, 0);
 
   const brifsWithProposals = briefs.filter(b => (b._count?.proposals ?? 0) > 0 && b.status === 'open');
+
+  // Onboarding state
+  const hasBriefs    = briefs.length > 0;
+  const hasCases     = cases.length > 0;
+  const hasProposals = totalProposals > 0;
 
   return (
     <div className="page-container">
@@ -91,6 +97,9 @@ export default async function ClientDashboard() {
           </p>
         </div>
       )}
+
+      {/* Onboarding checklist for new users */}
+      <ClientOnboarding hasBriefs={hasBriefs} hasCases={hasCases} hasProposals={hasProposals} />
 
       {/* Stats row */}
       <div className="dash-stats-4">

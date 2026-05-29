@@ -21,14 +21,17 @@ interface Bid {
   lawyer: {
     full_name: string;
     lawyer_profile: {
-      experience_years: number | null;
-      practice_areas: string[];
-      avg_rating: number | null;
-      review_count: number | null;
-      total_cases: number | null;
-
-      primary_court: string | null;
-      bci_number: string | null;
+      experience_years:  number | null;
+      practice_areas:    string[];
+      avg_rating:        number | null;
+      review_count:      number | null;
+      total_cases:       number | null;
+      completion_rate:   number | null;
+      dispute_rate:      number | null;
+      response_rate:     number | null;
+      languages:         string[];
+      primary_court:     string | null;
+      bci_number:        string | null;
     } | null;
   } | null;
 }
@@ -109,6 +112,29 @@ export default function ProposalCard({ bid, index, briefStatus, briefId }: Props
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <RatingStars rating={lawyerProfile?.avg_rating ?? 0} count={lawyerProfile?.review_count ?? 0} />
               <span style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)' }}>{totalCases} cases</span>
+            </div>
+            {/* Quality trust indicators */}
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '5px' }}>
+              {lawyerProfile?.completion_rate != null && lawyerProfile.completion_rate > 0 && (
+                <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(43,138,62,0.08)', color: '#2b8a3e', fontWeight: 600 }}>
+                  {Math.round(lawyerProfile.completion_rate * 100)}% completion
+                </span>
+              )}
+              {lawyerProfile?.dispute_rate != null && lawyerProfile.dispute_rate > 0.15 && (
+                <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(201,42,42,0.07)', color: '#c92a2a', fontWeight: 600 }} title="Above-average dispute rate">
+                  ⚠ {Math.round(lawyerProfile.dispute_rate * 100)}% disputes
+                </span>
+              )}
+              {lawyerProfile?.response_rate != null && lawyerProfile.response_rate >= 0.9 && (
+                <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(13,115,119,0.08)', color: 'var(--teal)', fontWeight: 600 }}>
+                  Fast responder
+                </span>
+              )}
+              {(lawyerProfile?.languages ?? []).filter(l => l !== 'English').slice(0, 2).map(lang => (
+                <span key={lang} style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(14,12,10,0.06)', color: 'rgba(14,12,10,0.5)', fontWeight: 500 }}>
+                  {lang}
+                </span>
+              ))}
             </div>
           </div>
 

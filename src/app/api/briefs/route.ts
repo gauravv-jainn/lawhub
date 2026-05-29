@@ -79,6 +79,47 @@ export async function POST(req: NextRequest) {
     description, structured_summary, budget_min, budget_max, pro_bono,
   } = parsed.data;
 
+  // ── Rate limit: max 3 briefs per 24 hours ────────────────────────────────
+  const recentBriefCount = await prisma.brief.count({
+    where: {
+      client_id:  session.user.id,
+      created_at: { gt: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+  });
+  if (recentBriefCount >= 3) {
+    console.warn(`[POST /api/briefs] Rate limit hit — user ${session.user.id} (${session.user.role}) attempted ${recentBriefCount + 1} briefs in 24h`);
+    return NextResponse.json(
+      { error: 'You can post a maximum of 3 briefs per 24 hours. Please review your existing briefs or wait before posting again.' },
+      { status: 429 }
+    );
+  }
+
+  // ── Duplicate title detection (same/very similar title in last 7 days) ────
+  const recentBriefs = await prisma.brief.findMany({
+    where: {
+      client_id:  session.user.id,
+      created_at: { gt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
+      status:     { not: 'closed' },
+    },
+    select: { title: true },
+  });
+  const normalise = (s: string) => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  const newTitleNorm = normalise(title);
+  const isDuplicateTitle = recentBriefs.some((b) => {
+    const existing = normalise(b.title);
+    // Exact match or one is a prefix/substring of the other (≥80% overlap)
+    if (existing === newTitleNorm) return true;
+    const shorter = existing.length < newTitleNorm.length ? existing : newTitleNorm;
+    const longer  = existing.length < newTitleNorm.length ? newTitleNorm : existing;
+    return longer.includes(shorter) && shorter.length / longer.length >= 0.8;
+  });
+  if (isDuplicateTitle) {
+    return NextResponse.json(
+      { error: 'A very similar brief was posted recently. Please edit your existing brief or wait 7 days before reposting.' },
+      { status: 400 }
+    );
+  }
+
   // NGO briefs can be pro bono (zero-fee). Regular clients cannot.
   const isProBono = session.user.role === 'ngo' && pro_bono === true;
 

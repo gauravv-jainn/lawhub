@@ -74,6 +74,16 @@ h1, h2, h3 {
   border-color: rgba(184,134,11,0.3);
 }
 
+/* Lawyer directory card hover */
+.lawyer-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+.lawyer-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(14,12,10,0.1);
+  border-color: rgba(13,115,119,0.25);
+}
+
 /* Sidebar active bar */
 .sidebar-link-active {
   position: relative;

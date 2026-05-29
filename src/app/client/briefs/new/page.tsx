@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { briefStep1Schema, BriefStep1Data } from '@/lib/utils/validators';
 import { LEGAL_CATEGORIES, COURTS, STATES } from '@/types';
+import BriefQualityHints from '@/components/shared/BriefQualityHints';
 
 const STEPS = ['Basic Info', 'Details', 'Documents', 'Review & Post'];
 
@@ -257,103 +258,116 @@ export default function NewBriefPage() {
 
       {/* ─── STEP 2: Details ─── */}
       {step === 2 && (
-        <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '16px', padding: '32px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>
-                  Describe your legal matter <span style={{ color: 'var(--rust)' }}>*</span>
-                </label>
-                <button type="button" onClick={handleAIStructure} disabled={aiLoading || description.length < 30}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '20px', alignItems: 'start' }}>
+          {/* Left: form */}
+          <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '16px', padding: '32px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>
+                    Describe your legal matter <span style={{ color: 'var(--rust)' }}>*</span>
+                  </label>
+                  <button type="button" onClick={handleAIStructure} disabled={aiLoading || description.length < 30}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      fontSize: '12px', fontWeight: 500, color: 'var(--gold)',
+                      background: 'rgba(184,134,11,0.08)',
+                      border: '1px solid rgba(184,134,11,0.2)',
+                      borderRadius: '6px', padding: '6px 12px', cursor: 'pointer',
+                      opacity: description.length < 30 ? 0.5 : 1,
+                    }}>
+                    {aiLoading ? '⏳ Structuring…' : '✨ Structure with AI'}
+                  </button>
+                </div>
+                <textarea
+                  value={description}
+                  onChange={e => setDescription(e.target.value)}
+                  rows={10}
+                  placeholder="Describe your situation in plain language. Include key facts, what happened, what you need, and any important dates or amounts."
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '6px',
-                    fontSize: '12px', fontWeight: 500, color: 'var(--gold)',
-                    background: 'rgba(184,134,11,0.08)',
-                    border: '1px solid rgba(184,134,11,0.2)',
-                    borderRadius: '6px', padding: '6px 12px', cursor: 'pointer',
-                    opacity: description.length < 30 ? 0.5 : 1,
-                  }}>
-                  {aiLoading ? '⏳ Structuring…' : '✨ Structure with AI'}
-                </button>
+                    width: '100%', padding: '12px', border: '1px solid rgba(14,12,10,0.15)',
+                    borderRadius: '8px', fontSize: '14px', lineHeight: 1.65,
+                    background: 'var(--cream)', resize: 'vertical', outline: 'none',
+                    fontFamily: "'DM Sans', sans-serif",
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <p style={{ fontSize: '11px', color: description.length < 100 ? 'var(--rust)' : 'rgba(14,12,10,0.4)', marginTop: '6px' }}>
+                  {description.length} characters · Min. 100 required
+                </p>
               </div>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={8}
-                placeholder="Describe your situation in plain language. Include key facts, what happened, what you need, and any important dates or amounts."
-                style={{
-                  width: '100%', padding: '12px', border: '1px solid rgba(14,12,10,0.15)',
-                  borderRadius: '8px', fontSize: '14px', lineHeight: 1.65,
-                  background: 'var(--cream)', resize: 'vertical', outline: 'none',
-                  fontFamily: "'DM Sans', sans-serif",
-                }}
-              />
-              <p style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginTop: '6px' }}>
-                {description.length} characters · Min. 50 required
-              </p>
+
+              {aiSummary && (
+                <div style={{ padding: '16px', background: 'rgba(13,115,119,0.06)', border: '1px solid rgba(13,115,119,0.15)', borderRadius: '10px' }}>
+                  <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--teal)', marginBottom: '8px' }}>
+                    ✨ AI Structured Summary
+                  </div>
+                  <p style={{ fontSize: '13px', lineHeight: 1.65, color: 'var(--ink)' }}>{aiSummary}</p>
+                </div>
+              )}
+
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--ink)', marginBottom: '12px' }}>
+                  Budget Range
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'rgba(14,12,10,0.5)' }}>Minimum (₹)</label>
+                    <input
+                      type="number"
+                      value={budgetMin / 100}
+                      onChange={e => setBudgetMin(Number(e.target.value) * 100)}
+                      min={5000} step={1000}
+                      className={inputClass}
+                      style={{ ...inputStyle(false), marginTop: '6px' }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '11px', color: 'rgba(14,12,10,0.5)' }}>Maximum (₹)</label>
+                    <input
+                      type="number"
+                      value={budgetMax / 100}
+                      onChange={e => setBudgetMax(Number(e.target.value) * 100)}
+                      min={5000} step={1000}
+                      className={inputClass}
+                      style={{ ...inputStyle(false), marginTop: '6px' }}
+                    />
+                  </div>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--gold)', marginTop: '8px', fontWeight: 500 }}>
+                  Budget range: {formatRupees(budgetMin)} – {formatRupees(budgetMax)}
+                </p>
+              </div>
             </div>
 
-            {aiSummary && (
-              <div style={{ padding: '16px', background: 'rgba(13,115,119,0.06)', border: '1px solid rgba(13,115,119,0.15)', borderRadius: '10px' }}>
-                <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--teal)', marginBottom: '8px' }}>
-                  ✨ AI Structured Summary
-                </div>
-                <p style={{ fontSize: '13px', lineHeight: 1.65, color: 'var(--ink)' }}>{aiSummary}</p>
-              </div>
-            )}
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 500, color: 'var(--ink)', marginBottom: '12px' }}>
-                Budget Range
-              </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                <div>
-                  <label style={{ fontSize: '11px', color: 'rgba(14,12,10,0.5)' }}>Minimum (₹)</label>
-                  <input
-                    type="number"
-                    value={budgetMin / 100}
-                    onChange={e => setBudgetMin(Number(e.target.value) * 100)}
-                    min={5000}
-                    step={1000}
-                    className={inputClass}
-                    style={{ ...inputStyle(false), marginTop: '6px' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '11px', color: 'rgba(14,12,10,0.5)' }}>Maximum (₹)</label>
-                  <input
-                    type="number"
-                    value={budgetMax / 100}
-                    onChange={e => setBudgetMax(Number(e.target.value) * 100)}
-                    min={5000}
-                    step={1000}
-                    className={inputClass}
-                    style={{ ...inputStyle(false), marginTop: '6px' }}
-                  />
-                </div>
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--gold)', marginTop: '8px', fontWeight: 500 }}>
-                Budget range: {formatRupees(budgetMin)} – {formatRupees(budgetMax)}
-              </p>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', marginTop: '28px' }}>
+              <button onClick={() => setStep(1)} style={{
+                background: 'none', border: '1px solid rgba(14,12,10,0.15)', color: 'var(--ink)',
+                padding: '11px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px',
+              }}>
+                ← Back
+              </button>
+              <button onClick={() => description.length >= 100 && setStep(3)}
+                disabled={description.length < 100}
+                style={{
+                  background: 'var(--gold)', color: 'white', padding: '11px 28px',
+                  borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
+                  opacity: description.length < 100 ? 0.5 : 1,
+                }}>
+                Continue →
+              </button>
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '12px', justifyContent: 'space-between', marginTop: '28px' }}>
-            <button onClick={() => setStep(1)} style={{
-              background: 'none', border: '1px solid rgba(14,12,10,0.15)', color: 'var(--ink)',
-              padding: '11px 20px', borderRadius: '8px', cursor: 'pointer', fontSize: '14px',
-            }}>
-              ← Back
-            </button>
-            <button onClick={() => description.length >= 50 && setStep(3)}
-              disabled={description.length < 50}
-              style={{
-                background: 'var(--gold)', color: 'white', padding: '11px 28px',
-                borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600,
-                opacity: description.length < 50 ? 0.5 : 1,
-              }}>
-              Continue →
-            </button>
+          {/* Right: quality hints panel */}
+          <div style={{ position: 'sticky', top: '24px' }}>
+            <BriefQualityHints
+              category={step1?.category ?? ''}
+              description={description}
+              budgetMin={budgetMin}
+              budgetMax={budgetMax}
+              hasDocuments={uploadedFiles.length > 0}
+            />
           </div>
         </div>
       )}

@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { appendLedger, LedgerEvent } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
@@ -117,27 +118,44 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create payment order.' }, { status: 500 });
   }
 
-  // Create or update payment record
-  const payment = await prisma.payment.upsert({
-    where: {
-      milestone_id: milestone.id,
-    },
-    create: {
-      case_id:          caseId,
-      client_id:        session.user.id,
-      lawyer_id:        caseRow.lawyer_id,
-      milestone_id:     milestone.id,
-      milestone_number: milestoneNumber,
+  // Create or update payment record; append ledger entry atomically
+  const idempotencyKey = `order_${order.id}`;
+
+  const payment = await prisma.$transaction(async (tx) => {
+    const pmt = await (tx as any).payment.upsert({
+      where: { milestone_id: milestone.id },
+      create: {
+        case_id:          caseId,
+        client_id:        session.user.id,
+        lawyer_id:        caseRow.lawyer_id,
+        milestone_id:     milestone.id,
+        milestone_number: milestoneNumber,
+        amount,
+        platform_fee:     platformFee,
+        net_amount:       netAmount,
+        status:           'pending',
+        razorpay_order_id: order.id,
+        idempotency_key:  idempotencyKey,
+      },
+      update: {
+        razorpay_order_id: order.id,
+        status:            'pending',
+        idempotency_key:  idempotencyKey,
+      },
+    });
+
+    await appendLedger({
+      tx,
+      paymentId:   pmt.id,
+      caseId,
+      milestoneId: milestone.id,
+      actorId:     session.user.id,
+      eventType:   LedgerEvent.PAYMENT_CREATED,
       amount,
-      platform_fee:     platformFee,
-      net_amount:       netAmount,
-      status:           'pending',
-      razorpay_order_id: order.id,
-    },
-    update: {
-      razorpay_order_id: order.id,
-      status:            'pending',
-    },
+      metadata:    { razorpay_order_id: order.id, milestone_number: milestoneNumber },
+    });
+
+    return pmt;
   });
 
   return NextResponse.json({

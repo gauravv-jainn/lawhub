@@ -6,6 +6,7 @@ import Link from 'next/link';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
 import { formatDate } from '@/lib/utils/formatDate';
+import LawyerOnboarding from '@/components/shared/LawyerOnboarding';
 
 export default async function LawyerDashboard() {
   const session = await getServerSession(authOptions);
@@ -40,8 +41,13 @@ export default async function LawyerDashboard() {
   const inEscrow = payments.filter(p => p.status === 'held').reduce((s, p) => s + p.amount, 0);
   const avgRating = profile?.avg_rating ? profile.avg_rating.toFixed(1) : '—';
 
-  const isPending = profile?.verification_status === 'pending';
+  const isPending  = profile?.verification_status === 'pending';
   const isVerified = profile?.verification_status === 'verified';
+  const isRejected = profile?.verification_status === 'rejected';
+
+  // Onboarding state
+  const hasProposals = bids.length > 0;
+  const hasCasesEver = cases.length > 0;
 
   return (
     <div className="page-container">
@@ -74,6 +80,13 @@ export default async function LawyerDashboard() {
           </Link>
         )}
       </div>
+
+      {/* Onboarding checklist */}
+      <LawyerOnboarding
+        verificationStatus={profile?.verification_status as 'pending' | 'verified' | 'rejected' ?? 'pending'}
+        hasProposals={hasProposals}
+        hasCases={hasCasesEver}
+      />
 
       {/* Stats */}
       <div className="dash-stats-4">

@@ -84,6 +84,21 @@ enum DisputeStatus {
   withdrawn        // raiser withdrew
 }
 
+enum LedgerEventType {
+  PAYMENT_CREATED
+  ESCROW_HELD
+  PAYMENT_CAPTURED
+  MILESTONE_RELEASED
+  PARTIAL_REFUND
+  FULL_REFUND
+  PLATFORM_FEE_DEDUCTED
+  TDS_DEDUCTED
+  DISPUTE_FROZEN
+  DISPUTE_RESOLVED
+  ADMIN_OVERRIDE
+  PAYMENT_FAILED
+}
+
 // ─── NextAuth models ─────────────────────────────────────────────────────────
 
 model Account {
@@ -160,6 +175,7 @@ model User {
   dispute_evidence    DisputeEvidence[]
   milestone_revisions MilestoneRevision[]
   admin_logs          AdminLog[]
+  ledger_entries      PaymentLedger[]
 
   @@index([role])
   @@map("users")
@@ -174,17 +190,22 @@ model LawyerProfile {
   primary_court       String
   experience_years    Int                @default(0)
   practice_areas      String[]
+  languages           String[]           @default(["English", "Hindi"])
   lawyer_type         String             @default("junior_advocate")
   only_legal_advice   Boolean            @default(false)
   bio                 String?
   verification_status VerificationStatus @default(pending)
   rejection_reason    String?
+  resubmission_note   String?            // admin guidance for resubmission
   bci_doc_url         String?
   aadhaar_doc_url     String?
   degree_doc_url      String?
   avg_rating          Float              @default(0)
   review_count        Int                @default(0)
   total_cases         Int                @default(0)
+  completion_rate     Float              @default(0)   // % of cases completed vs cancelled
+  dispute_rate        Float              @default(0)   // % of cases that had disputes
+  response_rate       Float              @default(0)   // % of proposals that got responses
   created_at          DateTime           @default(now())
   updated_at          DateTime           @updatedAt
   user                User               @relation(fields: [id], references: [id], onDelete: Cascade)
@@ -308,16 +329,17 @@ model Case {
   created_at              DateTime    @default(now())
   updated_at              DateTime    @updatedAt
 
-  brief        Brief       @relation(fields: [brief_id], references: [id])
-  client       User        @relation("ClientCases", fields: [client_id], references: [id])
-  lawyer       User        @relation("LawyerCases", fields: [lawyer_id], references: [id])
-  cancelled_by User?       @relation("CancelledCases", fields: [cancelled_by_id], references: [id])
+  brief        Brief           @relation(fields: [brief_id], references: [id])
+  client       User            @relation("ClientCases", fields: [client_id], references: [id])
+  lawyer       User            @relation("LawyerCases", fields: [lawyer_id], references: [id])
+  cancelled_by User?           @relation("CancelledCases", fields: [cancelled_by_id], references: [id])
   milestones   Milestone[]
   messages     Message[]
   payments     Payment[]
   events       CaseEvent[]
   reviews      Review[]
   dispute      Dispute?
+  ledger       PaymentLedger[]
 
   @@index([client_id, status])
   @@index([lawyer_id, status])
@@ -358,8 +380,11 @@ model MilestoneAttachment {
   milestone_id String
   name         String
   url          String
-  uploaded_by  String    // user_id — for display attribution
-  created_at   DateTime  @default(now())
+  public_id    String?              // Cloudinary public_id for signed URL generation + deletion
+  file_size    Int?                 // bytes
+  mime_type    String?              // e.g. application/pdf
+  uploaded_by  String               // user_id — for display attribution
+  created_at   DateTime @default(now())
   milestone    Milestone @relation(fields: [milestone_id], references: [id], onDelete: Cascade)
 
   @@index([milestone_id])
@@ -382,15 +407,17 @@ model Payment {
   tds_amount          Int           @default(0)
   lawyer_final_amount Int           @default(0)
   status              PaymentStatus @default(pending)
+  idempotency_key     String?       @unique // prevent double-processing
   razorpay_order_id   String?
   razorpay_payment_id String?
   paid_at             DateTime?
   created_at          DateTime      @default(now())
 
-  case      Case       @relation(fields: [case_id], references: [id])
-  client    User       @relation("ClientPayments", fields: [client_id], references: [id])
-  lawyer    User       @relation("LawyerPayments", fields: [lawyer_id], references: [id])
-  milestone Milestone? @relation(fields: [milestone_id], references: [id])
+  case      Case            @relation(fields: [case_id], references: [id])
+  client    User            @relation("ClientPayments", fields: [client_id], references: [id])
+  lawyer    User            @relation("LawyerPayments", fields: [lawyer_id], references: [id])
+  milestone Milestone?      @relation(fields: [milestone_id], references: [id])
+  ledger    PaymentLedger[]
 
   @@index([case_id])
   @@index([client_id])
@@ -517,6 +544,9 @@ model DisputeEvidence {
   uploaded_by String
   name        String
   url         String
+  public_id   String?             // Cloudinary public_id for signed URL generation + deletion
+  file_size   Int?                // bytes
+  mime_type   String?             // e.g. application/pdf
   file_type   String   @default("document") // document | image | screenshot
   created_at  DateTime @default(now())
   dispute     Dispute  @relation(fields: [dispute_id], references: [id], onDelete: Cascade)
@@ -542,6 +572,49 @@ model AdminLog {
   @@index([admin_id, created_at(sort: Desc)])
   @@index([target_id, target_type])
   @@map("admin_logs")
+}
+
+// ─── Payment Ledger (immutable append-only audit trail) ───────────────────────
+
+model PaymentLedger {
+  id             String          @id @default(cuid())
+  payment_id     String
+  case_id        String
+  milestone_id   String?
+  dispute_id     String?
+  actor_id       String?
+  event_type     LedgerEventType
+  amount         Int             // paise — amount involved in this event
+  currency       String          @default("INR")
+  balance_before Int             // escrow balance before this event
+  balance_after  Int             // escrow balance after this event
+  metadata       Json?
+  created_at     DateTime        @default(now())
+
+  payment  Payment @relation(fields: [payment_id], references: [id])
+  case     Case    @relation(fields: [case_id], references: [id])
+  actor    User?   @relation(fields: [actor_id], references: [id])
+
+  @@index([payment_id, created_at(sort: Asc)])
+  @@index([case_id, created_at(sort: Desc)])
+  @@map("payment_ledger")
+}
+
+// ─── Webhook Event Deduplication ─────────────────────────────────────────────
+
+model WebhookEvent {
+  id           String    @id @default(cuid())
+  provider     String    // "razorpay"
+  event_id     String    // provider's event id for dedup
+  event_type   String
+  processed    Boolean   @default(false)
+  processed_at DateTime?
+  payload      Json
+  created_at   DateTime  @default(now())
+
+  @@unique([provider, event_id])
+  @@index([provider, event_type, created_at(sort: Desc)])
+  @@map("webhook_events")
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

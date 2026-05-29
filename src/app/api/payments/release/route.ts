@@ -14,6 +14,7 @@ import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { notify } from '@/lib/notifications';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
+import { appendLedger, LedgerEvent } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 // TDS Section 194J: 10% on professional fees >= ₹30,000
@@ -28,6 +29,7 @@ export async function POST(req: NextRequest) {
   const { paymentId } = (await req.json()) as { paymentId?: string };
   if (!paymentId) return NextResponse.json({ error: 'paymentId required.' }, { status: 400 });
 
+  // Load payment metadata (without changing status yet — optimistic lock applied inside tx)
   const payment = await prisma.payment.findFirst({
     where: {
       id:        paymentId,
@@ -69,10 +71,13 @@ export async function POST(req: NextRequest) {
   const tds_amount          = tds_applicable ? Math.round(payment.amount * TDS_RATE) : 0;
   const lawyer_final_amount = payment.amount - tds_amount;
 
+  try {
   await prisma.$transaction(async (tx) => {
-    // 1. Release payment
-    await tx.payment.update({
-      where: { id: paymentId },
+    // 1. Optimistic lock: the WHERE status='held' makes this atomic.
+    //    If two concurrent release requests both arrive, only one UPDATE will match
+    //    (the second sees status='released' and updates 0 rows → throws).
+    const updated = await tx.payment.updateMany({
+      where: { id: paymentId, client_id: session.user.id, status: 'held' },
       data: {
         status: 'released',
         tds_applicable,
@@ -81,6 +86,9 @@ export async function POST(req: NextRequest) {
         paid_at: new Date(),
       },
     });
+    if (updated.count === 0) {
+      throw new Error('PAYMENT_ALREADY_PROCESSED');
+    }
 
     // 2. Mark milestone as paid
     if (payment.milestone_id) {
@@ -90,7 +98,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Record event
+    // 3. Record case event
     await tx.caseEvent.create({
       data: {
         case_id:    payment.case_id,
@@ -100,7 +108,39 @@ export async function POST(req: NextRequest) {
         description: `${formatCurrency(payment.amount)} released to advocate.${tds_applicable ? ` TDS of ${formatCurrency(tds_amount)} deducted.` : ''}`,
       },
     });
+
+    // 4. Ledger: funds leave escrow
+    await appendLedger({
+      tx,
+      paymentId:   paymentId,
+      caseId:      payment.case_id,
+      milestoneId: payment.milestone_id,
+      actorId:     session.user.id,
+      eventType:   LedgerEvent.MILESTONE_RELEASED,
+      amount:      payment.amount,
+      metadata:    { lawyer_final_amount, tds_applicable },
+    });
+
+    // 5. Ledger: TDS informational entry (does not change escrow balance)
+    if (tds_applicable && tds_amount > 0) {
+      await appendLedger({
+        tx,
+        paymentId:   paymentId,
+        caseId:      payment.case_id,
+        milestoneId: payment.milestone_id,
+        actorId:     session.user.id,
+        eventType:   LedgerEvent.TDS_DEDUCTED,
+        amount:      tds_amount,
+        metadata:    { section: '194J', rate: '10%', threshold_paise: 3_000_000 },
+      });
+    }
   });
+  } catch (err: any) {
+    if (err?.message === 'PAYMENT_ALREADY_PROCESSED') {
+      return NextResponse.json({ error: 'Payment has already been released.' }, { status: 409 });
+    }
+    throw err; // re-throw to be caught by Next.js error handler
+  }
 
   // Notify lawyer — with email (payment received is critical)
   await notify({

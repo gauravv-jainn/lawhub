@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
   }
 
   const { lawyerId, action, reason } = parsed.data;
+  // Capture optional admin guidance note for the lawyer (extra field not in schema)
+  const resubmissionNote: string | null =
+    typeof (body as Record<string, unknown>)?.resubmission_note === 'string'
+      ? ((body as Record<string, unknown>).resubmission_note as string).trim() || null
+      : null;
 
   if (action === 'reject' && !reason?.trim()) {
     return NextResponse.json({ error: 'Rejection reason is required.' }, { status: 400 });
@@ -71,8 +76,11 @@ export async function POST(req: NextRequest) {
     where: { id: lawyerId },
     data: {
       verification_status: newStatus!,
-      ...(action === 'reject'          ? { rejection_reason: reason!.trim() }  : {}),
-      ...(action === 'reset_to_pending' ? { rejection_reason: null }            : {}),
+      ...(action === 'reject' ? {
+        rejection_reason:  reason!.trim(),
+        resubmission_note: resubmissionNote,
+      } : {}),
+      ...(action === 'reset_to_pending' ? { rejection_reason: null, resubmission_note: null } : {}),
     },
   });
 

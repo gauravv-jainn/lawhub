@@ -11,12 +11,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   const navItems = [
     { label: 'Dashboard',           href: '/admin/dashboard' },
+    { label: 'Operations',          href: '/admin/operations' },
     { label: 'Dispute Queue',       href: '/admin/disputes' },
     { label: 'Lawyer Verification', href: '/admin/lawyers' },
     { label: 'Brief Moderation',    href: '/admin/briefs' },
     { label: 'Users',               href: '/admin/users' },
     { label: 'Revenue',             href: '/admin/revenue' },
     { label: 'Audit Log',           href: '/admin/audit-log' },
+    { label: 'Ledger',              href: '/admin/ledger' },
   ];
 
   return (

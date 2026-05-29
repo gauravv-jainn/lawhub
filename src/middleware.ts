@@ -14,6 +14,15 @@ export default withAuth(
     const { pathname } = req.nextUrl;
     const token = req.nextauth.token;
 
+    // Blocked suspended users from all protected pages (except the suspended notice itself)
+    if (
+      token?.suspended &&
+      !pathname.startsWith('/auth/suspended') &&
+      !pathname.startsWith('/api/auth')
+    ) {
+      return NextResponse.redirect(new URL('/auth/suspended', req.url));
+    }
+
     // Redirect authenticated users away from auth pages to their home
     if (token && (pathname === '/auth/login' || pathname.startsWith('/auth/register'))) {
       const home = ROLE_HOME[token.role as string] ?? '/client/dashboard';
@@ -48,7 +57,8 @@ export default withAuth(
           pathname.startsWith('/auth') ||
           pathname.startsWith('/api/auth') ||
           pathname === '/' ||
-          pathname.startsWith('/lawyer-profile')
+          pathname.startsWith('/lawyer-profile') ||
+          pathname.startsWith('/lawyers')
         ) {
           return true;
         }

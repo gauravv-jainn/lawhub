@@ -3,6 +3,7 @@ import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { redirect } from 'next/navigation';
 import RatingStars from '@/components/shared/RatingStars';
+import ResubmissionForm from './ResubmissionForm';
 
 export default async function LawyerProfilePage() {
   const session = await getServerSession(authOptions);
@@ -84,29 +85,38 @@ export default async function LawyerProfilePage() {
         <div
           style={{
             background: 'rgba(192,57,43,0.05)', border: '1px solid rgba(192,57,43,0.2)',
-            borderRadius: '12px', padding: '20px 24px', marginBottom: '24px',
+            borderRadius: '12px', padding: '24px', marginBottom: '24px',
           }}
         >
-          <div
-            style={{
-              display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px',
-            }}
-          >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
             <span style={{ fontSize: '22px' }}>⚠️</span>
-            <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--rust)' }}>
-              Verification Rejected
+            <div style={{ fontWeight: 600, fontSize: '15px', color: 'var(--rust)' }}>
+              Verification Requires Action
             </div>
           </div>
+
           {lawyer?.rejection_reason && (
-            <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.65)', margin: '0 0 14px', lineHeight: 1.6 }}>
-              <strong>Reason:</strong> {lawyer.rejection_reason}
-            </p>
+            <div style={{ background: 'white', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', border: '1px solid rgba(192,57,43,0.15)' }}>
+              <div style={{ fontSize: '11px', fontWeight: 700, color: '#c0392b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                Issue identified
+              </div>
+              <p style={{ fontSize: '13px', color: 'var(--ink)', margin: 0, lineHeight: 1.6 }}>
+                {lawyer.rejection_reason}
+              </p>
+            </div>
           )}
-          <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.55)', margin: '0 0 14px', lineHeight: 1.5 }}>
-            Please update your documents to address the issue above and contact{' '}
-            <a href="mailto:support@lawhub.in" style={{ color: 'var(--rust)' }}>support@lawhub.in</a>{' '}
-            to request re-review.
+
+          <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.6)', marginBottom: '20px', lineHeight: 1.5 }}>
+            Please upload updated documents below to address the issue and resubmit for review.
+            Our team will notify you within 24 hours of submission.
           </p>
+
+          <ResubmissionForm
+            currentBciUrl={lawyer?.bci_doc_url ?? null}
+            currentAadhaarUrl={lawyer?.aadhaar_doc_url ?? null}
+            currentDegreeUrl={lawyer?.degree_doc_url ?? null}
+            resubmissionNote={lawyer?.resubmission_note ?? null}
+          />
         </div>
       )}
 

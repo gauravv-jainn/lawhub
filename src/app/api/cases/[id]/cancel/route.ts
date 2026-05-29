@@ -15,6 +15,7 @@ import prisma from '@/lib/prisma';
 import { cancellationSchema } from '@/lib/utils/validators';
 import { notify } from '@/lib/notifications';
 import { issueRazorpayRefund } from '@/lib/razorpay';
+import { appendLedger, LedgerEvent } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(
@@ -59,7 +60,7 @@ export async function POST(
   // Fetch held payments BEFORE the transaction to trigger Razorpay refunds
   const heldPayments = await prisma.payment.findMany({
     where: { case_id: params.id, status: 'held' },
-    select: { id: true, amount: true, razorpay_payment_id: true },
+    select: { id: true, amount: true, milestone_id: true, razorpay_payment_id: true },
   });
 
   // Issue Razorpay refunds first (outside transaction — these are external calls)
@@ -110,7 +111,21 @@ export async function POST(
       data: { status: 'refunded' },
     });
 
-    // 4. Record event
+    // 4. Ledger: full refund entries for each held payment
+    for (const pmt of heldPayments) {
+      await appendLedger({
+        tx,
+        paymentId:   pmt.id,
+        caseId:      params.id,
+        milestoneId: pmt.milestone_id,
+        actorId:     session.user.id,
+        eventType:   LedgerEvent.FULL_REFUND,
+        amount:      pmt.amount,
+        metadata:    { reason: parsed.data.reason, triggered_by: isClient ? 'client' : 'lawyer' },
+      });
+    }
+
+    // 5. Record case event
     await tx.caseEvent.create({
       data: {
         case_id: params.id,
