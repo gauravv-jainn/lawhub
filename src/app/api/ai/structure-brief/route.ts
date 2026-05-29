@@ -3,7 +3,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { generateCompletion } from '@/lib/ai/provider';
 import { BRIEF_STRUCTURE_SYSTEM } from '@/lib/ai/prompts';
-import { checkAndLogAiUsage } from '@/lib/ai/usage';
 import { aiRateLimit } from '@/lib/ratelimit';
 
 const MAX_INPUT_LENGTH = 5000;
@@ -24,16 +23,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `Text too long (maximum ${MAX_INPUT_LENGTH} characters)` }, { status: 400 });
     }
 
-    const { text: responseText, tokensUsed } = await generateCompletion({
+    const { text: responseText } = await generateCompletion({
       system: BRIEF_STRUCTURE_SYSTEM,
       userMessage: text,
       maxTokens: 1024,
     });
-
-    const { allowed } = await checkAndLogAiUsage(session.user.id, 'structure-brief', tokensUsed);
-    if (!allowed) {
-      return NextResponse.json({ error: 'Daily AI limit reached (20 calls/day)' }, { status: 429 });
-    }
 
     let structured: Record<string, unknown>;
     try {

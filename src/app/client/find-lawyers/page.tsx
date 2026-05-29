@@ -29,7 +29,7 @@ export default async function FindLawyersPage() {
         {allLawyers.map((lawyer: any) => {
           const name = lawyer.user?.full_name ?? 'Unknown';
           const initials = name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-          const winRate = lawyer.total_cases > 0 ? Math.round((lawyer.wins / lawyer.total_cases) * 100) : 0;
+          const avgRating = lawyer.avg_rating ? lawyer.avg_rating.toFixed(1) : null;
 
           return (
             <Link key={lawyer.id} href={`/lawyer-profile/${lawyer.id}`}
@@ -58,7 +58,7 @@ export default async function FindLawyersPage() {
                 ))}
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                <span style={{ color: '#1A6B3A', fontWeight: 500 }}>{winRate}% win rate</span>
+                {avgRating && <span style={{ color: '#1A6B3A', fontWeight: 500 }}>★ {avgRating} rating</span>}
                 <span style={{ color: 'rgba(14,12,10,0.45)' }}>{lawyer.total_cases} cases</span>
                 <span style={{ color: 'var(--gold)', fontWeight: 500 }}>{lawyer.experience_years} yrs</span>
               </div>

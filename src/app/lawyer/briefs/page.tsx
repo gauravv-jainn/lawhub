@@ -44,11 +44,11 @@ export default async function LawyerBriefsPage() {
       where: { status: 'open' },
       orderBy: { created_at: 'desc' },
       include: {
-        _count: { select: { bids: true } },
+        _count: { select: { proposals: true } },
         client: { select: { full_name: true } },
       },
     }),
-    prisma.bid.findMany({
+    prisma.proposal.findMany({
       where: { lawyer_id: userId },
       select: { brief_id: true },
     }),
@@ -56,10 +56,10 @@ export default async function LawyerBriefsPage() {
 
   const biddedBriefIds = new Set((myBids ?? []).map((b: any) => b.brief_id));
 
-  // Map _count.bids → bid_count, and include client_name for AI drafting
+  // Map _count.proposals → bid_count for BriefBrowser sorting
   const briefsWithCount = (briefs ?? []).map((b: any) => ({
     ...b,
-    bid_count: b._count?.bids ?? 0,
+    bid_count: b._count?.proposals ?? 0,
     client_name: b.client?.full_name ?? null,
   }));
 

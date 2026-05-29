@@ -14,66 +14,52 @@ interface NavItem {
 const clientNav: NavItem[] = [
   { label: 'Dashboard',     href: '/client/dashboard',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
   { label: 'My Briefs',     href: '/client/briefs',       icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Proposals',     href: '/client/proposals',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 10a1 1 0 01-1 1H3l-2 2V2a1 1 0 011-1h11a1 1 0 011 1v8z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
   { label: 'Active Cases',  href: '/client/cases',        icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
   { label: 'Payments',      href: '/client/payments',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><path d="M1 6.5h14" stroke="currentColor" strokeWidth="1.5"/><circle cx="4.5" cy="9.5" r="1" fill="currentColor"/></svg> },
   { label: 'Find Advocates',href: '/client/find-lawyers', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="6.5" cy="6.5" r="4" stroke="currentColor" strokeWidth="1.5"/><path d="M11 11l3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Network',       href: '/network',             icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="4" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/><path d="M5 7.5l6-3M5 8.5l6 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
 
 const lawyerNav: NavItem[] = [
-  { label: 'Dashboard',   href: '/lawyer/dashboard', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
-  { label: 'Browse Briefs',href: '/lawyer/briefs',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'My Bids',     href: '/lawyer/bids',      icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 10a1 1 0 01-1 1H3l-2 2V2a1 1 0 011-1h11a1 1 0 011 1v8z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-  { label: 'Active Cases', href: '/lawyer/cases',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Earnings',    href: '/lawyer/earnings',  icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 10.5L6 7l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 5h-3V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'My Reviews',  href: '/lawyer/reviews',   icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.9 3.8 4.1.6-3 2.9.7 4.1L8 10.2l-3.7 2.2.7-4.1-3-2.9 4.1-.6L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-  { label: 'My Profile',  href: '/lawyer/profile',   icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Network',     href: '/network',          icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="4" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/><path d="M5 7.5l6-3M5 8.5l6 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Dashboard',     href: '/lawyer/dashboard',  icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
+  { label: 'Browse Briefs', href: '/lawyer/briefs',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'My Proposals',  href: '/lawyer/proposals',  icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M14 10a1 1 0 01-1 1H3l-2 2V2a1 1 0 011-1h11a1 1 0 011 1v8z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+  { label: 'Active Cases',  href: '/lawyer/cases',      icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Earnings',      href: '/lawyer/earnings',   icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 10.5L6 7l3 3 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M14 5h-3V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'My Reviews',    href: '/lawyer/reviews',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.9 3.8 4.1.6-3 2.9.7 4.1L8 10.2l-3.7 2.2.7-4.1-3-2.9 4.1-.6L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
+  { label: 'My Profile',    href: '/lawyer/profile',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
 
 const enterpriseNav: NavItem[] = [
-  { label: 'Overview',    href: '/enterprise/dashboard',   icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
-  { label: 'Team',        href: '/enterprise/associates',  icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="5.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.5"/><circle cx="10.5" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.5"/><path d="M1 14c0-2.5 2-4.5 4.5-4.5S10 11.5 10 14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/><path d="M10.5 9.5c2.5 0 4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Internships', href: '/enterprise/internships', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.9 3.8 4.1.6-3 2.9.7 4.1L8 10.2l-3.7 2.2.7-4.1-3-2.9 4.1-.6L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-  { label: 'Network',     href: '/network',                icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="4" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/><path d="M5 7.5l6-3M5 8.5l6 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'My Profile',  href: '/enterprise/profile',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Overview',    href: '/enterprise/dashboard', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
+  { label: 'My Briefs',   href: '/client/briefs',        icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Active Cases', href: '/client/cases',        icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'My Profile',  href: '/enterprise/profile',   icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
 
 const ngoNav: NavItem[] = [
-  { label: 'Dashboard',     href: '/ngo/dashboard', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
-  { label: 'Post a Brief',  href: '/ngo/briefs/new', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'My Briefs',     href: '/ngo/briefs',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Active Cases',  href: '/ngo/cases',      icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Find Advocates',href: '/network',        icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="4" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/><path d="M5 7.5l6-3M5 8.5l6 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'My Profile',    href: '/ngo/profile',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-];
-
-const studentNav: NavItem[] = [
-  { label: 'Internships',     href: '/student/internships',  icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l1.9 3.8 4.1.6-3 2.9.7 4.1L8 10.2l-3.7 2.2.7-4.1-3-2.9 4.1-.6L8 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg> },
-  { label: 'My Applications', href: '/student/applications', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'Network',         href: '/network',              icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="3" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="4" r="2" stroke="currentColor" strokeWidth="1.5"/><circle cx="13" cy="12" r="2" stroke="currentColor" strokeWidth="1.5"/><path d="M5 7.5l6-3M5 8.5l6 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
-  { label: 'My Profile',      href: '/student/profile',      icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Dashboard',    href: '/ngo/dashboard',  icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="1" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="1" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><rect x="9" y="9" width="6" height="6" rx="1.5" stroke="currentColor" strokeWidth="1.5"/></svg> },
+  { label: 'Post a Brief', href: '/ngo/briefs/new', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'My Briefs',    href: '/ngo/briefs',     icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 1H4a1.5 1.5 0 00-1.5 1.5v11A1.5 1.5 0 004 15h8a1.5 1.5 0 001.5-1.5V5L10 1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><path d="M10 1v4h4M5 8h6M5 11h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'Active Cases', href: '/ngo/cases',      icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 1v2M10.5 1v2M2 6h12M3 2.5h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1v-10a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
+  { label: 'My Profile',   href: '/ngo/profile',    icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.5"/><path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg> },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
-  client: 'Client Portal',
-  lawyer: 'Advocate Portal',
+  client:     'Client Portal',
+  lawyer:     'Advocate Portal',
   enterprise: 'Firm Portal',
-  ngo: 'NGO Portal',
-  student: 'Student Portal',
+  ngo:        'NGO Portal',
 };
 
 const navMap: Record<string, NavItem[]> = {
-  client: clientNav,
-  lawyer: lawyerNav,
+  client:     clientNav,
+  lawyer:     lawyerNav,
   enterprise: enterpriseNav,
-  ngo: ngoNav,
-  student: studentNav,
+  ngo:        ngoNav,
 };
 
 interface AppSidebarProps {
-  role: 'client' | 'lawyer' | 'enterprise' | 'ngo' | 'student';
+  role: 'client' | 'lawyer' | 'enterprise' | 'ngo';
   userInitials: string;
   userName: string;
   subtitle?: string;

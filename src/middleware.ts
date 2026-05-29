@@ -6,7 +6,6 @@ const ROLE_HOME: Record<string, string> = {
   lawyer:     '/lawyer/dashboard',
   enterprise: '/enterprise/dashboard',
   ngo:        '/ngo/dashboard',
-  student:    '/student/internships',
   admin:      '/admin/dashboard',
 };
 
@@ -34,9 +33,6 @@ export default withAuth(
     if (pathname.startsWith('/ngo') && token?.role !== 'ngo' && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/auth/login', req.url));
     }
-    if (pathname.startsWith('/student') && token?.role !== 'student' && token?.role !== 'admin') {
-      return NextResponse.redirect(new URL('/auth/login', req.url));
-    }
     if (pathname.startsWith('/client') && token?.role !== 'client' && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/auth/login', req.url));
     }
@@ -52,8 +48,6 @@ export default withAuth(
           pathname.startsWith('/auth') ||
           pathname.startsWith('/api/auth') ||
           pathname === '/' ||
-          pathname.startsWith('/internships') ||
-          pathname.startsWith('/network') ||
           pathname.startsWith('/lawyer-profile')
         ) {
           return true;

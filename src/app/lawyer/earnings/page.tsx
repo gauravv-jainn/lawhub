@@ -88,7 +88,7 @@ export default async function LawyerEarningsPage() {
 
         {allPayments.length === 0 ? (
           <p style={{ fontSize: '14px', color: 'rgba(14,12,10,0.4)', textAlign: 'center', padding: '32px' }}>
-            No payments yet. Win a bid to get started.
+            No payments yet. Submit proposals and get hired to start earning.
           </p>
         ) : (
           <div style={{ overflowX: 'auto' }}>

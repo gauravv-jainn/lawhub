@@ -14,7 +14,7 @@ export default async function NGOBriefDetailPage({ params }: { params: { id: str
 
   const [brief, bids] = await Promise.all([
     prisma.brief.findFirst({ where: { id: params.id, client_id: userId } }),
-    prisma.bid.findMany({
+    prisma.proposal.findMany({
       where: { brief_id: params.id },
       orderBy: { created_at: 'desc' },
       include: {

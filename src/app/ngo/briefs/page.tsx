@@ -25,8 +25,8 @@ export default async function NGOBriefsPage() {
     where: { client_id: userId },
     orderBy: { created_at: 'desc' },
     include: {
-      _count: { select: { bids: true } },
-      bids: {
+      _count: { select: { proposals: true } },
+      proposals: {
         where: { status: 'pending' },
         select: { id: true },
       },
@@ -100,14 +100,14 @@ export default async function NGOBriefsPage() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '28px', fontWeight: 700, color: 'var(--ink)', lineHeight: 1 }}>
-                      {b._count.bids}
+                      {b._count.proposals}
                     </div>
                     <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)' }}>
-                      proposal{b._count.bids !== 1 ? 's' : ''}
+                      proposal{b._count.proposals !== 1 ? 's' : ''}
                     </div>
-                    {b.bids.length > 0 && (
+                    {b.proposals.length > 0 && (
                       <div style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginTop: '4px' }}>
-                        {b.bids.length} pending
+                        {b.proposals.length} pending
                       </div>
                     )}
                   </div>

@@ -13,11 +13,11 @@ export default async function BriefDetailPage({ params }: { params: { id: string
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const [brief, bids, docs] = await Promise.all([
+  const [brief, bids, docs, linkedCase] = await Promise.all([
     prisma.brief.findFirst({
       where: { id: params.id, client_id: userId },
     }),
-    prisma.bid.findMany({
+    prisma.proposal.findMany({
       where: { brief_id: params.id },
       orderBy: { created_at: 'desc' },
       include: {
@@ -32,7 +32,6 @@ export default async function BriefDetailPage({ params }: { params: { id: string
                 avg_rating: true,
                 review_count: true,
                 total_cases: true,
-                wins: true,
                 primary_court: true,
                 bci_number: true,
               },
@@ -44,20 +43,57 @@ export default async function BriefDetailPage({ params }: { params: { id: string
     prisma.briefDocument.findMany({
       where: { brief_id: params.id },
     }),
+    prisma.case.findFirst({
+      where: { brief_id: params.id },
+      select: { id: true },
+    }),
   ]);
 
   if (!brief) notFound();
 
+  const canEdit    = brief.status === 'open' && !linkedCase;
+  const isExpired  = brief.status === 'expired';
+  const expiresAt  = (brief as any).expires_at as Date | null;
+
   return (
     <div style={{ padding: '32px', maxWidth: '1000px' }}>
+      {/* Expired banner */}
+      {isExpired && (
+        <div
+          style={{
+            marginBottom: '20px', padding: '14px 18px',
+            background: 'rgba(192,57,43,0.05)', border: '1px solid rgba(192,57,43,0.2)',
+            borderRadius: '10px', fontSize: '13px', color: 'var(--rust)',
+          }}
+        >
+          This brief has expired and is no longer visible to advocates.
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
-          <span style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '4px', background: 'rgba(13,115,119,0.1)', color: 'var(--teal)', fontWeight: 500 }}>
-            {brief.category}
-          </span>
-          <StatusBadge status={brief.urgency} />
-          <StatusBadge status={brief.status} size="md" />
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', flexWrap: 'wrap', marginBottom: '12px' }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '12px', padding: '3px 10px', borderRadius: '4px', background: 'rgba(13,115,119,0.1)', color: 'var(--teal)', fontWeight: 500 }}>
+              {brief.category}
+            </span>
+            <StatusBadge status={brief.urgency} />
+            <StatusBadge status={brief.status} size="md" />
+          </div>
+          {canEdit && (
+            <a
+              href={`/client/briefs/${params.id}/edit`}
+              style={{
+                fontSize: '13px', fontWeight: 500, color: 'var(--ink)',
+                padding: '7px 16px', borderRadius: '8px',
+                border: '1px solid rgba(14,12,10,0.15)',
+                textDecoration: 'none',
+                background: 'white',
+              }}
+            >
+              Edit Brief
+            </a>
+          )}
         </div>
         <h1 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '34px', fontWeight: 600, color: 'var(--ink)', marginBottom: '8px' }}>
           {brief.title}
@@ -66,7 +102,16 @@ export default async function BriefDetailPage({ params }: { params: { id: string
           <span>⚖️ {brief.court}</span>
           <span>📍 {brief.city}, {brief.state}</span>
           <span>📅 Posted {formatDate(brief.created_at.toISOString())}</span>
-          {brief.closes_at && <span style={{ color: brief.status === 'open' ? 'var(--rust)' : 'inherit' }}>⏰ {formatTimeLeft(brief.closes_at.toISOString())}</span>}
+          {expiresAt && brief.status === 'open' && (
+            <span style={{ color: 'var(--rust)' }}>
+              ⏰ Expires {formatDate(expiresAt.toISOString())}
+            </span>
+          )}
+          {brief.closes_at && (
+            <span style={{ color: brief.status === 'open' ? 'var(--rust)' : 'inherit' }}>
+              ⏰ {formatTimeLeft(brief.closes_at.toISOString())}
+            </span>
+          )}
         </div>
       </div>
 
@@ -162,9 +207,10 @@ export default async function BriefDetailPage({ params }: { params: { id: string
           {/* Quick stats */}
           <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
             {[
-              { label: 'Proposals', value: bids.length },
-              { label: 'Status', value: <StatusBadge status={brief.status} /> },
-              { label: 'Urgency', value: <StatusBadge status={brief.urgency} /> },
+              { label: 'Proposals',     value: String(bids.length) },
+              { label: 'Status',        value: <StatusBadge status={brief.status} /> },
+              { label: 'Urgency',       value: <StatusBadge status={brief.urgency} /> },
+              ...(expiresAt ? [{ label: 'Expires', value: formatDate(expiresAt.toISOString()) }] : []),
             ].map(({ label, value }) => (
               <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '12px', marginBottom: '12px', borderBottom: '1px solid rgba(14,12,10,0.06)' }}>
                 <span style={{ fontSize: '12px', color: 'rgba(14,12,10,0.45)' }}>{label}</span>

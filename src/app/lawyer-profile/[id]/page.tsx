@@ -30,7 +30,7 @@ export default async function PublicLawyerProfilePage({ params }: { params: { id
 
   const name = profile?.full_name ?? 'Unknown';
   const initials = name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-  const winRate = lawyerData.total_cases > 0 ? Math.round((lawyerData.wins / lawyerData.total_cases) * 100) : 0;
+  const avgRating = lawyerData.avg_rating ? lawyerData.avg_rating.toFixed(1) : null;
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
@@ -63,7 +63,7 @@ export default async function PublicLawyerProfilePage({ params }: { params: { id
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginTop: '20px' }}>
                 {[
-                  { label: 'Win Rate', value: `${winRate}%`, color: '#1A6B3A' },
+                  { label: 'Avg. Rating', value: avgRating ? `★ ${avgRating}` : '—', color: '#1A6B3A' },
                   { label: 'Cases', value: lawyerData.total_cases, color: 'var(--ink)' },
                   { label: 'Experience', value: `${lawyerData.experience_years} yrs`, color: 'var(--gold)' },
                   { label: 'Fee Range', value: lawyerData.fee_min ? `${formatCurrency(lawyerData.fee_min)}+` : 'On request', color: 'var(--teal)' },

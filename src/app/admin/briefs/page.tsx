@@ -14,7 +14,7 @@ export default async function AdminBriefsPage() {
     take: 100,
     include: {
       client: { select: { full_name: true } },
-      _count: { select: { bids: true } },
+      _count: { select: { proposals: true } },
     },
   });
 
@@ -43,7 +43,7 @@ export default async function AdminBriefsPage() {
                 <span>{brief.category}</span>
                 <span>By: {brief.client?.full_name}</span>
                 <span>{formatDate(brief.created_at.toISOString())}</span>
-                <span>{brief._count?.bids ?? 0} bids</span>
+                <span>{brief._count?.proposals ?? 0} proposals</span>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>

@@ -37,8 +37,14 @@ export default async function AdminUsersPage() {
           </thead>
           <tbody>
             {allUsers.map((u: any) => (
-              <tr key={u.id} style={{ borderBottom: '1px solid rgba(14,12,10,0.05)' }}>
-                <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--ink)' }}>{u.full_name}</td>
+              <tr key={u.id} style={{ borderBottom: '1px solid rgba(14,12,10,0.05)', cursor: 'pointer' }}
+                onClick={() => { window.location.href = `/admin/users/${u.id}`; }}>
+                <td style={{ padding: '12px 16px', fontWeight: 500, color: 'var(--ink)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    {(u as any).suspended && <span style={{ fontSize: '10px', color: 'var(--rust)' }} title="Suspended">🚫</span>}
+                    {u.full_name}
+                  </div>
+                </td>
                 <td style={{ padding: '12px 16px' }}>
                   <span style={{
                     fontSize: '11px', padding: '2px 8px', borderRadius: '100px', fontWeight: 600,

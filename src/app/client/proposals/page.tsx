@@ -17,7 +17,7 @@ export default async function ClientProposalsPage() {
     where: { client_id: userId },
     orderBy: { created_at: 'desc' },
     include: {
-      bids: {
+      proposals: {
         include: {
           lawyer: {
             select: {
@@ -27,7 +27,6 @@ export default async function ClientProposalsPage() {
                   avg_rating: true,
                   review_count: true,
                   total_cases: true,
-                  wins: true,
                   primary_court: true,
                   experience_years: true,
                 },
@@ -40,7 +39,7 @@ export default async function ClientProposalsPage() {
   });
 
   const allBriefs = (briefs ?? []) as any[];
-  const briefsWithBids = allBriefs.filter(b => b.bids?.length > 0);
+  const briefsWithBids = allBriefs.filter(b => b.proposals?.length > 0);
 
   return (
     <div className="page-container">
@@ -49,7 +48,7 @@ export default async function ClientProposalsPage() {
           All Proposals
         </h1>
         <p style={{ fontSize: '14px', color: 'rgba(14,12,10,0.45)' }}>
-          {briefsWithBids.reduce((s: number, b: any) => s + b.bids.length, 0)} total proposals across {briefsWithBids.length} brief{briefsWithBids.length !== 1 ? 's' : ''}
+          {briefsWithBids.reduce((s: number, b: any) => s + b.proposals.length, 0)} total proposals across {briefsWithBids.length} brief{briefsWithBids.length !== 1 ? 's' : ''}
         </p>
       </div>
 
@@ -74,7 +73,7 @@ export default async function ClientProposalsPage() {
                     {brief.title}
                   </h2>
                   <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.4)', marginTop: '2px' }}>
-                    {brief.bids.length} proposal{brief.bids.length !== 1 ? 's' : ''} · {brief.category}
+                    {brief.proposals.length} proposal{brief.proposals.length !== 1 ? 's' : ''} · {brief.category}
                   </div>
                 </div>
                 <Link href={`/client/briefs/${brief.id}`} style={{ fontSize: '12px', color: 'var(--gold)' }}>
@@ -83,7 +82,7 @@ export default async function ClientProposalsPage() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {brief.bids.map((bid: any) => {
+                {brief.proposals.map((bid: any) => {
                   const lawyerName = bid.lawyer?.full_name ?? 'Unknown';
                   const initials = lawyerName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
                   return (

@@ -20,7 +20,7 @@ const OPTIONS = [
     icon: '🏢',
     color: 'rgba(52,73,94,0.1)',
     title: 'Law Firm / Enterprise',
-    desc: 'Manage associates, assign cases, post internships and run your firm on one platform',
+    desc: 'Post briefs, manage legal matters, track cases and handle payments on one platform',
   },
   {
     href: '/auth/register/ngo',
@@ -28,13 +28,6 @@ const OPTIONS = [
     color: 'rgba(39,174,96,0.1)',
     title: 'NGO / Legal Aid',
     desc: 'Manage pro-bono cases, connect with advocates and coordinate volunteers',
-  },
-  {
-    href: '/auth/register/student',
-    icon: '🎓',
-    color: 'rgba(155,89,182,0.1)',
-    title: 'Law Student',
-    desc: 'Browse internship opportunities, build your network and gain practical experience',
   },
 ];
 

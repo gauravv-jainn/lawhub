@@ -15,12 +15,12 @@ export default async function NGODashboard() {
       where: { client_id: userId },
       orderBy: { created_at: 'desc' },
       take: 5,
-      include: { _count: { select: { bids: true } } },
+      include: { _count: { select: { proposals: true } } },
     }),
     prisma.case.count({
       where: { brief: { client_id: userId }, status: 'active' },
     }),
-    prisma.bid.count({
+    prisma.proposal.count({
       where: { brief: { client_id: userId }, status: 'pending' },
     }),
   ]);
@@ -127,7 +127,7 @@ export default async function NGODashboard() {
                           {b.title}
                         </div>
                         <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginTop: '2px' }}>
-                          {b.category} · {b._count.bids} bid{b._count.bids !== 1 ? 's' : ''}
+                          {b.category} · {b._count.proposals} proposal{b._count.proposals !== 1 ? 's' : ''}
                         </div>
                       </div>
                       <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px', background: sc.bg, color: sc.text, marginLeft: '8px', flexShrink: 0, textTransform: 'capitalize' }}>
@@ -151,10 +151,9 @@ export default async function NGODashboard() {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
-                { href: '/ngo/briefs/new', icon: '✏️', label: 'Post a brief', desc: 'Seek legal support for a cause' },
-                { href: '/ngo/briefs', icon: '📄', label: 'View my briefs', desc: 'Track proposals and status' },
-                { href: '/network', icon: '🔍', label: 'Find advocates', desc: 'Connect with pro-bono lawyers' },
-                { href: '/ngo/cases', icon: '📁', label: 'Active cases', desc: 'Track ongoing legal matters' },
+                { href: '/ngo/briefs/new', icon: '✏️', label: 'Post a brief',   desc: 'Seek legal support for a cause' },
+                { href: '/ngo/briefs',     icon: '📄', label: 'View my briefs', desc: 'Track proposals and status' },
+                { href: '/ngo/cases',      icon: '📁', label: 'Active cases',   desc: 'Track ongoing legal matters' },
               ].map(a => (
                 <Link key={a.href} href={a.href} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', background: 'var(--cream)', textDecoration: 'none' }}>
                   <span style={{ fontSize: '18px' }}>{a.icon}</span>

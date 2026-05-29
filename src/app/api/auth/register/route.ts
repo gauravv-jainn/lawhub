@@ -47,15 +47,6 @@ const ngoRegisterSchema = z.object({
   description: z.string().optional().nullable(),
 });
 
-const studentRegisterSchema = z.object({
-  full_name: z.string().min(2),
-  email: z.string().email(),
-  phone: z.string().regex(/^[6-9]\d{9}$/),
-  password: z.string().min(8),
-  city: z.string().optional().nullable(),
-  state: z.string().optional().nullable(),
-});
-
 // POST /api/auth/register — multi-type registration
 export async function POST(req: NextRequest) {
   // Rate limit: 10 registrations per 15 minutes per IP
@@ -193,28 +184,6 @@ export async function POST(req: NextRequest) {
               verification_status: 'pending',
             },
           },
-        },
-      });
-      return NextResponse.json({ userId: user.id });
-    }
-
-    // ── Student ───────────────────────────────────────────────────────────
-    if (type === 'student') {
-      const parsed = studentRegisterSchema.safeParse(body);
-      if (!parsed.success) {
-        return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
-      }
-      const d = parsed.data;
-      const hashedPassword = await bcrypt.hash(d.password, 12);
-      const user = await prisma.user.create({
-        data: {
-          email: d.email,
-          password: hashedPassword,
-          full_name: d.full_name,
-          phone: d.phone,
-          city: d.city ?? null,
-          state: d.state ?? null,
-          role: 'student',
         },
       });
       return NextResponse.json({ userId: user.id });

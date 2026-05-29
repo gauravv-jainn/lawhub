@@ -15,7 +15,7 @@ export default async function ClientBriefs() {
   const briefs = await prisma.brief.findMany({
     where: { client_id: userId },
     orderBy: { created_at: 'desc' },
-    include: { _count: { select: { bids: true } } },
+    include: { _count: { select: { proposals: true } } },
   });
 
   const allBriefs = briefs ?? [];
@@ -117,7 +117,7 @@ export default async function ClientBriefs() {
                     {formatCurrency(brief.budget_min ?? 0)} – {formatCurrency(brief.budget_max ?? 0)}
                   </div>
                   <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.4)' }}>
-                    {(brief as any)._count?.bids ?? 0} proposal{((brief as any)._count?.bids ?? 0) !== 1 ? 's' : ''}
+                    {(brief as any)._count?.proposals ?? 0} proposal{((brief as any)._count?.proposals ?? 0) !== 1 ? 's' : ''}
                   </div>
                 </div>
               </div>

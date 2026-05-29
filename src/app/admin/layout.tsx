@@ -10,11 +10,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (session.user.role !== 'admin') redirect('/');
 
   const navItems = [
-    { label: 'Dashboard', href: '/admin/dashboard' },
+    { label: 'Dashboard',           href: '/admin/dashboard' },
+    { label: 'Dispute Queue',       href: '/admin/disputes' },
     { label: 'Lawyer Verification', href: '/admin/lawyers' },
-    { label: 'Brief Moderation', href: '/admin/briefs' },
-    { label: 'Users', href: '/admin/users' },
-    { label: 'Revenue', href: '/admin/revenue' },
+    { label: 'Brief Moderation',    href: '/admin/briefs' },
+    { label: 'Users',               href: '/admin/users' },
+    { label: 'Revenue',             href: '/admin/revenue' },
+    { label: 'Audit Log',           href: '/admin/audit-log' },
   ];
 
   return (

@@ -115,7 +115,7 @@ export default function BriefBrowser({ briefs, biddedBriefIds, lawyerId, lawyerN
                     <StatusBadge status={brief.urgency} />
                     {hasBid && (
                       <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(26,107,58,0.1)', color: '#1A6B3A', fontWeight: 500 }}>
-                        ✓ Bid Submitted
+                        ✓ Proposal Submitted
                       </span>
                     )}
                   </div>
@@ -129,7 +129,7 @@ export default function BriefBrowser({ briefs, biddedBriefIds, lawyerId, lawyerN
                     <span>⚖️ {brief.court}</span>
                     <span>📍 {brief.city}, {brief.state}</span>
                     <span>📋 {brief.bid_count} bid{brief.bid_count !== 1 ? 's' : ''}</span>
-                    <span>⏰ {formatTimeLeft(brief.closes_at)}</span>
+                    {brief.expires_at && <span>⏰ {formatTimeLeft(brief.expires_at)}</span>}
                     <span>🕒 {formatRelativeTime(brief.created_at)}</span>
                   </div>
                   {brief.structured_summary && (

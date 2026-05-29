@@ -217,7 +217,7 @@ export default function ForSection() {
                         </div>
                         <div style={{ display: 'flex', gap: '6px' }}>
                           <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '4px', background: 'rgba(13,115,119,0.1)', color: 'var(--teal)', fontWeight: 500 }}>{brief.category}</span>
-                          <span style={{ fontSize: '10px', color: 'rgba(14,12,10,0.4)' }}>{brief.bids} bid{brief.bids !== 1 ? 's' : ''}</span>
+                          <span style={{ fontSize: '10px', color: 'rgba(14,12,10,0.4)' }}>{brief.bids} proposal{brief.bids !== 1 ? 's' : ''}</span>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>

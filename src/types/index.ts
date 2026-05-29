@@ -1,14 +1,19 @@
-export type UserRole = 'client' | 'lawyer' | 'enterprise' | 'ngo' | 'student' | 'admin';
-export type LawyerType = 'junior_advocate' | 'senior_advocate' | 'associate';
-export type ConnectionStatus = 'pending' | 'accepted' | 'rejected';
-export type InternshipApplicationStatus = 'pending' | 'reviewed' | 'shortlisted' | 'rejected' | 'accepted';
+// ─── Core domain types ─────────────────────────────────────────────────────────
+// Keep in sync with prisma/schema.prisma
+
+export type UserRole        = 'client' | 'lawyer' | 'enterprise' | 'ngo' | 'admin';
+export type LawyerType      = 'junior_advocate' | 'senior_advocate' | 'associate';
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
-export type BriefStatus = 'open' | 'closed' | 'awarded';
-export type BriefUrgency = 'standard' | 'urgent' | 'emergency';
-export type BidStatus = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
-export type FeeStructure = 'flat' | 'milestone' | 'retainer' | 'hourly';
-export type CaseStatus = 'active' | 'completed' | 'disputed' | 'cancelled';
-export type PaymentStatus = 'pending' | 'held' | 'released' | 'refunded';
+export type BriefStatus     = 'open' | 'closed' | 'awarded' | 'expired';
+export type BriefUrgency    = 'standard' | 'urgent' | 'emergency';
+export type ProposalStatus  = 'pending' | 'accepted' | 'rejected' | 'withdrawn';
+export type FeeStructure    = 'flat' | 'milestone' | 'retainer' | 'hourly';
+export type CaseStatus      = 'active' | 'completion_requested' | 'completed' | 'disputed' | 'cancelled';
+export type MilestoneStatus = 'active' | 'submitted' | 'approved' | 'disputed' | 'paid' | 'cancelled';
+export type PaymentStatus   = 'pending' | 'held' | 'released' | 'refunded';
+export type DisputeStatus   = 'open' | 'under_review' | 'resolved_client' | 'resolved_lawyer' | 'settled';
+
+// ─── User / Profile ────────────────────────────────────────────────────────────
 
 export interface Profile {
   id: string;
@@ -39,15 +44,12 @@ export interface LawyerProfile {
   aadhaar_doc_url: string | null;
   degree_doc_url: string | null;
   total_cases: number;
-  wins: number;
   total_earned: number;
   avg_rating: number;
   review_count: number;
 }
 
-export interface LawyerWithProfile extends Profile {
-  lawyer_profiles: LawyerProfile;
-}
+// ─── Brief ─────────────────────────────────────────────────────────────────────
 
 export interface Brief {
   id: string;
@@ -63,9 +65,8 @@ export interface Brief {
   budget_max: number;
   urgency: BriefUrgency;
   status: BriefStatus;
-  bid_count: number;
-  closes_at: string;
-  engaged_lawyer_id: string | null;
+  pro_bono: boolean;
+  expires_at: string | null;
   created_at: string;
 }
 
@@ -79,7 +80,9 @@ export interface BriefDocument {
   uploaded_at: string;
 }
 
-export interface Bid {
+// ─── Proposal (DB table: bids) ─────────────────────────────────────────────────
+
+export interface Proposal {
   id: string;
   brief_id: string;
   lawyer_id: string;
@@ -88,54 +91,95 @@ export interface Bid {
   milestone_count: number;
   strategy_text: string;
   cover_letter: string;
+  cover_note: string | null;
   relevant_experience: string | null;
-  availability: string;
-  estimated_timeline: string;
-  status: BidStatus;
+  availability: string | null;
+  estimated_timeline: string | null;
+  status: ProposalStatus;
   created_at: string;
 }
 
-export interface BidWithLawyer extends Bid {
-  profiles: Profile;
-  lawyer_profiles: LawyerProfile;
-}
+// ─── Case ──────────────────────────────────────────────────────────────────────
 
 export interface Case {
   id: string;
   brief_id: string;
   client_id: string;
   lawyer_id: string;
-  bid_id: string;
   title: string;
   status: CaseStatus;
   total_fee: number;
   fee_structure: FeeStructure;
-  milestone_count: number;
-  current_milestone: number;
   next_hearing_date: string | null;
-  next_hearing_court: string | null;
-  outcome: string | null;
+  completion_requested_at: string | null;
+  cancellation_reason: string | null;
+  cancelled_at: string | null;
   created_at: string;
-  closed_at: string | null;
 }
+
+// ─── Milestone ─────────────────────────────────────────────────────────────────
+
+export interface Milestone {
+  id: string;
+  case_id: string;
+  number: number;
+  title: string;
+  description: string | null;
+  deliverables: string | null;
+  amount: number;
+  due_date: string | null;
+  status: MilestoneStatus;
+  submitted_at: string | null;
+  approved_at: string | null;
+}
+
+export interface MilestoneAttachment {
+  id: string;
+  milestone_id: string;
+  name: string;
+  url: string;
+  uploaded_by: string;
+  created_at: string;
+}
+
+// ─── Dispute ───────────────────────────────────────────────────────────────────
+
+export interface Dispute {
+  id: string;
+  case_id: string;
+  raised_by_id: string;
+  reason: string;
+  description: string | null;
+  status: DisputeStatus;
+  resolution: string | null;
+  admin_id: string | null;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+// ─── Payment ───────────────────────────────────────────────────────────────────
 
 export interface Payment {
   id: string;
   case_id: string;
   client_id: string;
   lawyer_id: string;
-  milestone_number: number;
+  milestone_id: string | null;
+  milestone_number: number | null;
   amount: number;
   platform_fee: number;
   net_amount: number;
+  tds_applicable: boolean;
+  tds_amount: number;
+  lawyer_final_amount: number;
   status: PaymentStatus;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
-  razorpay_payout_id: string | null;
   paid_at: string | null;
-  released_at: string | null;
   created_at: string;
 }
+
+// ─── Case Event ────────────────────────────────────────────────────────────────
 
 export interface CaseEvent {
   id: string;
@@ -144,20 +188,23 @@ export interface CaseEvent {
   event_type: string;
   title: string;
   description: string | null;
-  metadata: Record<string, unknown> | null;
   created_at: string;
 }
+
+// ─── Message ───────────────────────────────────────────────────────────────────
 
 export interface Message {
   id: string;
   case_id: string;
   sender_id: string;
-  sender_role: 'client' | 'lawyer';
   content: string;
   file_url: string | null;
+  file_name: string | null;
   read_at: string | null;
   created_at: string;
 }
+
+// ─── Review ────────────────────────────────────────────────────────────────────
 
 export interface Review {
   id: string;
@@ -170,6 +217,8 @@ export interface Review {
   created_at: string;
 }
 
+// ─── Notification ──────────────────────────────────────────────────────────────
+
 export interface AppNotification {
   id: string;
   user_id: string;
@@ -179,48 +228,28 @@ export interface AppNotification {
   link: string | null;
   is_read: boolean;
   read_at: string | null;
+  email_sent: boolean;
   created_at: string;
 }
 
-export const PRACTICE_AREAS = [
-  'Property',
-  'Commercial',
-  'Family',
-  'Consumer',
-  'Criminal',
-  'Constitutional',
-  'Revenue',
-  'Arbitration',
-  'Labour',
-  'Other',
-] as const;
+// ─── Reference data (constants) ────────────────────────────────────────────────
 
+export const PRACTICE_AREAS = [
+  'Property', 'Commercial', 'Family', 'Consumer', 'Criminal',
+  'Constitutional', 'Revenue', 'Arbitration', 'Labour', 'Other',
+] as const;
 export type PracticeArea = typeof PRACTICE_AREAS[number];
 
 export const LEGAL_CATEGORIES = [
-  'Property Dispute',
-  'Commercial/Business',
-  'Family & Matrimonial',
-  'Consumer Protection',
-  'Criminal Defence',
-  'Constitutional Matters',
-  'Revenue & Tax',
-  'Arbitration & Mediation',
-  'Labour & Employment',
-  'Other',
+  'Property Dispute', 'Commercial/Business', 'Family & Matrimonial',
+  'Consumer Protection', 'Criminal Defence', 'Constitutional Matters',
+  'Revenue & Tax', 'Arbitration & Mediation', 'Labour & Employment', 'Other',
 ] as const;
 
 export const COURTS = [
-  'Supreme Court of India',
-  'High Court',
-  'District Court',
-  'Consumer Forum',
-  'Labour Court',
-  'Family Court',
-  'Revenue Court / Tribunal',
-  'Arbitration Tribunal',
-  'Magistrate Court',
-  'Other',
+  'Supreme Court of India', 'High Court', 'District Court',
+  'Consumer Forum', 'Labour Court', 'Family Court',
+  'Revenue Court / Tribunal', 'Arbitration Tribunal', 'Magistrate Court', 'Other',
 ] as const;
 
 export const STATES = [
@@ -229,34 +258,29 @@ export const STATES = [
   'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
   'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
   'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-  'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Other'
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'Other',
 ] as const;
 
 export const LAWYER_TYPES = [
   { value: 'junior_advocate', label: 'Junior Advocate' },
   { value: 'senior_advocate', label: 'Senior Advocate' },
-  { value: 'associate', label: 'Associate' },
+  { value: 'associate',       label: 'Associate' },
 ] as const;
 
 export const CAUSE_AREAS = [
-  'Women & Child Rights',
-  'Environmental Law',
-  'Human Rights',
-  'Refugee & Asylum',
-  'Disability Rights',
-  'LGBTQ+ Rights',
-  'Land Rights',
-  'Labour Rights',
-  'Education Access',
-  'Criminal Justice Reform',
-  'Other',
+  'Women & Child Rights', 'Environmental Law', 'Human Rights',
+  'Refugee & Asylum', 'Disability Rights', 'LGBTQ+ Rights',
+  'Land Rights', 'Labour Rights', 'Education Access',
+  'Criminal Justice Reform', 'Other',
 ] as const;
 
 export const FIRM_TYPES = [
-  { value: 'law_firm', label: 'Law Firm' },
-  { value: 'corporate', label: 'Corporate Legal Dept.' },
-  { value: 'chambers', label: 'Chambers' },
+  { value: 'law_firm',   label: 'Law Firm' },
+  { value: 'corporate',  label: 'Corporate Legal Dept.' },
+  { value: 'chambers',   label: 'Chambers' },
 ] as const;
+
+// ─── Organisation profiles ─────────────────────────────────────────────────────
 
 export interface EnterpriseProfile {
   id: string;
@@ -282,65 +306,4 @@ export interface NGOProfile {
   description: string | null;
   verification_status: string;
   created_at: string;
-}
-
-export interface InternshipPosting {
-  id: string;
-  enterprise_id: string;
-  title: string;
-  description: string;
-  duration: string;
-  stipend: string | null;
-  skills: string[];
-  location: string | null;
-  remote: boolean;
-  openings: number;
-  closes_at: string | null;
-  status: string;
-  created_at: string;
-  enterprise?: EnterpriseProfile;
-  _count?: { applications: number };
-}
-
-export interface InternshipApplication {
-  id: string;
-  posting_id: string;
-  applicant_id: string;
-  cover_letter: string;
-  resume_url: string | null;
-  status: InternshipApplicationStatus;
-  created_at: string;
-  posting?: InternshipPosting;
-}
-
-export interface Connection {
-  id: string;
-  requester_id: string;
-  recipient_id: string;
-  status: ConnectionStatus;
-  created_at: string;
-  requester?: Profile;
-  recipient?: Profile;
-}
-
-export interface NGOCase {
-  id: string;
-  ngo_id: string;
-  title: string;
-  description: string;
-  category: string;
-  location: string | null;
-  status: string;
-  lawyer_id: string | null;
-  created_at: string;
-  lawyer?: Profile | null;
-}
-
-export interface EnterpriseAssociate {
-  id: string;
-  enterprise_id: string;
-  lawyer_id: string;
-  role: string;
-  joined_at: string;
-  lawyer?: Profile & { lawyer_profile?: LawyerProfile };
 }

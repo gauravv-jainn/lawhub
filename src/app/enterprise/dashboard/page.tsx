@@ -2,7 +2,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
-import { formatDate } from '@/lib/utils/formatDate';
 import { redirect } from 'next/navigation';
 
 export default async function EnterpriseDashboard() {
@@ -10,42 +9,40 @@ export default async function EnterpriseDashboard() {
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const [profile, associates, internships, pendingApps] = await Promise.all([
+  const [profile, recentBriefs, activeCases, pendingProposals, totalPayments] = await Promise.all([
     prisma.enterpriseProfile.findUnique({ where: { id: userId } }),
-    prisma.enterpriseAssociate.findMany({
-      where: { enterprise_id: userId },
-      include: {
-        lawyer: {
-          include: {
-            user: { select: { full_name: true, avatar_url: true, city: true, state: true, email: true } },
-          },
-        },
-      },
-      orderBy: { joined_at: 'desc' },
-    }),
-    prisma.internshipPosting.findMany({
-      where: { enterprise_id: userId, status: 'active' },
-      include: { _count: { select: { applications: true } } },
+    prisma.brief.findMany({
+      where: { client_id: userId },
       orderBy: { created_at: 'desc' },
-      take: 3,
+      take: 5,
+      include: { _count: { select: { proposals: true } } },
     }),
-    prisma.internshipApplication.count({
-      where: { posting: { enterprise_id: userId }, status: 'pending' },
+    prisma.case.count({
+      where: { client_id: userId, status: { in: ['active', 'completion_requested'] } },
+    }),
+    prisma.proposal.count({
+      where: { brief: { client_id: userId }, status: 'pending' },
+    }),
+    prisma.payment.aggregate({
+      where: { client_id: userId, status: 'released' },
+      _sum: { amount: true },
     }),
   ]);
 
-  const roleGroups: Record<string, typeof associates> = {};
-  for (const a of associates) {
-    const r = a.role ?? 'associate';
-    if (!roleGroups[r]) roleGroups[r] = [];
-    roleGroups[r].push(a);
-  }
+  const openBriefs = recentBriefs.filter(b => b.status === 'open').length;
+  const totalSpent = Math.round((totalPayments._sum.amount ?? 0) / 100);
 
-  const ROLE_ORDER = ['partner', 'associate', 'intern'];
-  const ROLE_COLOR: Record<string, { bg: string; text: string }> = {
-    partner:   { bg: 'rgba(184,134,11,0.12)',  text: 'var(--gold)' },
-    associate: { bg: 'rgba(13,115,119,0.1)',   text: 'var(--teal)' },
-    intern:    { bg: 'rgba(155,89,182,0.1)',   text: 'rgba(155,89,182,0.85)' },
+  const STATUS_COLOR: Record<string, { bg: string; text: string }> = {
+    open:    { bg: 'rgba(13,115,119,0.1)',  text: 'var(--teal)' },
+    closed:  { bg: 'rgba(14,12,10,0.06)',   text: 'rgba(14,12,10,0.4)' },
+    awarded: { bg: 'rgba(26,107,58,0.1)',   text: '#1A6B3A' },
+    expired: { bg: 'rgba(192,57,43,0.08)', text: 'var(--rust)' },
+  };
+
+  const URGENCY_COLOR: Record<string, string> = {
+    emergency: 'var(--rust)',
+    urgent:    'var(--gold)',
+    standard:  'var(--teal)',
   };
 
   return (
@@ -79,9 +76,9 @@ export default async function EnterpriseDashboard() {
               )}
             </p>
           </div>
-          <Link href="/enterprise/internships/new"
+          <Link href="/client/briefs/new"
             style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', background: 'var(--gold)', color: 'white', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontSize: '13px', fontWeight: 600 }}>
-            + Post Internship
+            + Post a Brief
           </Link>
         </div>
       </div>
@@ -89,12 +86,12 @@ export default async function EnterpriseDashboard() {
       {/* Stats row */}
       <div className="dash-stats-3">
         {[
-          { label: 'Team Members', value: associates.length, icon: '👥', color: 'rgba(52,73,94,0.08)', href: '/enterprise/associates' },
-          { label: 'Active Internships', value: internships.length, icon: '🎓', color: 'rgba(184,134,11,0.08)', href: '/enterprise/internships' },
-          { label: 'Pending Applications', value: pendingApps, icon: '📋', color: 'rgba(13,115,119,0.08)', href: '/enterprise/internships' },
+          { label: 'Open Briefs',        value: openBriefs,   icon: '📄', color: 'rgba(52,73,94,0.08)',    href: '/client/briefs' },
+          { label: 'Pending Proposals',  value: pendingProposals, icon: '⚖️', color: 'rgba(184,134,11,0.08)', href: '/client/briefs' },
+          { label: 'Active Cases',       value: activeCases,  icon: '📁', color: 'rgba(13,115,119,0.08)',   href: '/client/cases' },
         ].map(s => (
           <Link key={s.label} href={s.href} style={{ textDecoration: 'none' }}>
-            <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px', cursor: 'pointer', transition: 'box-shadow 0.15s' }}>
+            <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px', cursor: 'pointer' }}>
               <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: s.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px', marginBottom: '12px' }}>
                 {s.icon}
               </div>
@@ -109,79 +106,68 @@ export default async function EnterpriseDashboard() {
 
       <div className="dash-grid-2">
 
-        {/* Team by role */}
+        {/* Recent Briefs */}
         <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '18px', fontWeight: 600, color: 'var(--ink)' }}>
-              Team
+              Recent Briefs
             </h2>
-            <Link href="/enterprise/associates" style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none' }}>
-              Manage →
+            <Link href="/client/briefs" style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none' }}>
+              View all →
             </Link>
           </div>
 
-          {associates.length === 0 ? (
+          {recentBriefs.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '32px 0', color: 'rgba(14,12,10,0.35)', fontSize: '13px' }}>
-              <div style={{ fontSize: '32px', marginBottom: '8px' }}>👥</div>
-              No team members yet.{' '}
-              <Link href="/enterprise/associates" style={{ color: 'var(--teal)', textDecoration: 'none' }}>Add your first →</Link>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>📄</div>
+              No briefs posted yet.{' '}
+              <Link href="/client/briefs/new" style={{ color: 'var(--teal)', textDecoration: 'none' }}>Post your first →</Link>
             </div>
           ) : (
-            <div>
-              {ROLE_ORDER.filter(r => roleGroups[r]?.length).map(role => {
-                const color = ROLE_COLOR[role] ?? { bg: 'rgba(14,12,10,0.06)', text: 'rgba(14,12,10,0.5)' };
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {recentBriefs.map(b => {
+                const sc = STATUS_COLOR[b.status] ?? STATUS_COLOR.open;
+                const borderColor = URGENCY_COLOR[b.urgency ?? 'standard'] ?? 'var(--teal)';
                 return (
-                  <div key={role} style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: 600, textTransform: 'capitalize', padding: '2px 8px', borderRadius: '20px', background: color.bg, color: color.text }}>
-                        {role}s
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'rgba(14,12,10,0.3)' }}>{roleGroups[role].length}</span>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      {roleGroups[role].slice(0, 3).map(a => (
-                        <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px', borderRadius: '8px', background: 'var(--cream)' }}>
-                          <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: color.bg, color: color.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, flexShrink: 0 }}>
-                            {a.lawyer.user.full_name[0]}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {a.lawyer.user.full_name}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)' }}>
-                              {a.lawyer.experience_years}y · {a.lawyer.practice_areas.slice(0, 2).join(', ')}
-                            </div>
-                          </div>
+                  <Link key={b.id} href={`/client/briefs/${b.id}`}
+                    style={{ display: 'block', padding: '12px', borderRadius: '8px', background: 'var(--cream)', textDecoration: 'none', borderLeft: `3px solid ${borderColor}` }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {b.title}
                         </div>
-                      ))}
-                      {roleGroups[role].length > 3 && (
-                        <p style={{ fontSize: '11px', color: 'rgba(14,12,10,0.35)', paddingLeft: '10px' }}>
-                          +{roleGroups[role].length - 3} more
-                        </p>
-                      )}
+                        <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginTop: '2px' }}>
+                          {b.category} · {b._count.proposals} proposal{b._count.proposals !== 1 ? 's' : ''}
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '10px', fontWeight: 600, padding: '2px 8px', borderRadius: '20px', background: sc.bg, color: sc.text, marginLeft: '8px', flexShrink: 0, textTransform: 'capitalize' }}>
+                        {b.status}
+                      </span>
                     </div>
-                  </div>
+                  </Link>
                 );
               })}
             </div>
           )}
         </div>
 
-        {/* Active internships + quick actions */}
+        {/* Quick Actions + Financials */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
-          {/* Quick actions */}
+          {/* Quick Actions */}
           <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
             <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '16px', fontWeight: 600, color: 'var(--ink)', marginBottom: '14px' }}>
               Quick Actions
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[
-                { href: '/enterprise/associates', icon: '➕', label: 'Add team member', desc: 'Invite an advocate by email' },
-                { href: '/enterprise/internships/new', icon: '📝', label: 'Post internship', desc: 'Create a new opening' },
-                { href: '/network', icon: '🔍', label: 'Browse advocates', desc: 'Find lawyers for your firm' },
+                { href: '/client/briefs/new', icon: '✏️', label: 'Post a brief',     desc: 'Describe your legal matter' },
+                { href: '/client/briefs',     icon: '📄', label: 'My briefs',        desc: 'Review proposals received' },
+                { href: '/client/cases',      icon: '📁', label: 'Active cases',     desc: 'Track ongoing legal matters' },
+                { href: '/client/payments',   icon: '💳', label: 'Payments',         desc: 'Milestones and escrow status' },
               ].map(a => (
-                <Link key={a.href} href={a.href} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', background: 'var(--cream)', textDecoration: 'none', transition: 'background 0.15s' }}>
+                <Link key={a.href} href={a.href}
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', borderRadius: '8px', background: 'var(--cream)', textDecoration: 'none' }}>
                   <span style={{ fontSize: '18px' }}>{a.icon}</span>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>{a.label}</div>
@@ -192,40 +178,24 @@ export default async function EnterpriseDashboard() {
             </div>
           </div>
 
-          {/* Active internships */}
-          <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '16px', fontWeight: 600, color: 'var(--ink)' }}>
-                Active Internships
+          {/* Financial summary */}
+          {totalSpent > 0 && (
+            <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
+              <h2 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '16px', fontWeight: 600, color: 'var(--ink)', marginBottom: '14px' }}>
+                Financials
               </h2>
-              <Link href="/enterprise/internships" style={{ fontSize: '12px', color: 'var(--gold)', textDecoration: 'none' }}>View all →</Link>
-            </div>
-            {internships.length === 0 ? (
-              <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.35)', textAlign: 'center', padding: '16px 0' }}>
-                No active postings.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {internships.map(p => (
-                  <Link key={p.id} href={`/enterprise/internships/${p.id}`}
-                    style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', borderRadius: '8px', background: 'var(--cream)', textDecoration: 'none' }}>
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>{p.title}</div>
-                      <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginTop: '1px' }}>
-                        {p.duration} {p.remote ? '· Remote' : p.location ? `· ${p.location}` : ''}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '18px', fontWeight: 700, color: 'var(--ink)' }}>
-                        {p._count.applications}
-                      </div>
-                      <div style={{ fontSize: '10px', color: 'rgba(14,12,10,0.35)' }}>applicants</div>
-                    </div>
-                  </Link>
-                ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', borderRadius: '8px', background: 'var(--cream)' }}>
+                <span style={{ fontSize: '13px', color: 'rgba(14,12,10,0.5)' }}>Total Legal Spend</span>
+                <span style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--ink)' }}>
+                  ₹{totalSpent.toLocaleString('en-IN')}
+                </span>
               </div>
-            )}
-          </div>
+              <Link href="/client/payments"
+                style={{ display: 'block', textAlign: 'center', marginTop: '12px', fontSize: '12px', color: 'var(--gold)', textDecoration: 'none' }}>
+                View payment history →
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </div>

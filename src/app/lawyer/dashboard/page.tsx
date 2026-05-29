@@ -12,9 +12,9 @@ export default async function LawyerDashboard() {
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const [lawyerProfile, bids, cases, payments, briefs, firmMembership] = await Promise.all([
+  const [lawyerProfile, bids, cases, payments, briefs] = await Promise.all([
     prisma.lawyerProfile.findUnique({ where: { id: userId } }),
-    prisma.bid.findMany({ where: { lawyer_id: userId }, select: { status: true } }),
+    prisma.proposal.findMany({ where: { lawyer_id: userId }, select: { status: true } }),
     prisma.case.findMany({
       where: { lawyer_id: userId, status: 'active' },
       take: 5,
@@ -30,17 +30,7 @@ export default async function LawyerDashboard() {
     prisma.brief.findMany({
       where: { status: 'open' },
       take: 3,
-      include: { _count: { select: { bids: true } } },
-    }),
-    prisma.enterpriseAssociate.findUnique({
-      where: { lawyer_id: userId },
-      include: {
-        enterprise: {
-          include: {
-            user: { select: { full_name: true, city: true, state: true } },
-          },
-        },
-      },
+      include: { _count: { select: { proposals: true } } },
     }),
   ]);
 
@@ -48,7 +38,7 @@ export default async function LawyerDashboard() {
   const openBids = bids.filter(b => b.status === 'pending').length;
   const totalEarned = payments.filter(p => p.status === 'released').reduce((s, p) => s + p.amount, 0);
   const inEscrow = payments.filter(p => p.status === 'held').reduce((s, p) => s + p.amount, 0);
-  const winRate = (profile?.total_cases ?? 0) > 0 ? Math.round(((profile?.wins ?? 0) / (profile?.total_cases ?? 1)) * 100) : 0;
+  const avgRating = profile?.avg_rating ? profile.avg_rating.toFixed(1) : '—';
 
   const isPending = profile?.verification_status === 'pending';
   const isVerified = profile?.verification_status === 'verified';
@@ -65,26 +55,6 @@ export default async function LawyerDashboard() {
               Your account is under review. You&apos;ll be notified within 24 hours. You can browse briefs once verified.
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Firm membership badge */}
-      {firmMembership && (
-        <div style={{ background: 'rgba(52,73,94,0.05)', border: '1px solid rgba(52,73,94,0.15)', borderRadius: '10px', padding: '12px 18px', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ fontSize: '20px' }}>🏢</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--ink)' }}>
-              {firmMembership.enterprise.firm_name}
-            </div>
-            <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.5)', marginTop: '1px' }}>
-              You are listed as <span style={{ fontWeight: 600, textTransform: 'capitalize' }}>{firmMembership.role}</span>
-              {firmMembership.enterprise.user.city && ` · ${firmMembership.enterprise.user.city}`}
-              {firmMembership.enterprise.user.state && `, ${firmMembership.enterprise.user.state}`}
-            </div>
-          </div>
-          <span style={{ fontSize: '11px', padding: '3px 10px', borderRadius: '20px', background: 'rgba(52,73,94,0.12)', color: 'rgba(52,73,94,0.8)', fontWeight: 500, textTransform: 'capitalize', whiteSpace: 'nowrap' }}>
-            {firmMembership.role}
-          </span>
         </div>
       )}
 
@@ -110,8 +80,8 @@ export default async function LawyerDashboard() {
         {[
           { label: 'Earnings (FY)', value: formatCurrency(totalEarned), color: '#1A6B3A', icon: '₹' },
           { label: 'Active Cases', value: cases.length, color: 'var(--teal)', icon: '⚖️' },
-          { label: 'Win Rate', value: `${winRate}%`, color: 'var(--gold)', icon: '🏆' },
-          { label: 'Open Bids', value: openBids, color: 'var(--ink)', icon: '📋' },
+          { label: 'Avg. Rating', value: avgRating === '—' ? '—' : `${avgRating} ★`, color: 'var(--gold)', icon: '⭐' },
+          { label: 'Open Proposals', value: openBids, color: 'var(--ink)', icon: '📋' },
         ].map(stat => (
           <div key={stat.label} style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
             <div style={{ fontSize: '20px', marginBottom: '8px' }}>{stat.icon}</div>
@@ -155,7 +125,7 @@ export default async function LawyerDashboard() {
                         {brief.title}
                       </div>
                       <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)' }}>
-                        {brief.category} · {(brief as any)._count?.bids ?? 0} bid{((brief as any)._count?.bids ?? 0) !== 1 ? 's' : ''}
+                        {brief.category} · {(brief as any)._count?.proposals ?? 0} proposal{((brief as any)._count?.proposals ?? 0) !== 1 ? 's' : ''}
                       </div>
                     </div>
                     <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '14px', fontWeight: 700, color: 'var(--gold)', flexShrink: 0 }}>
@@ -179,7 +149,7 @@ export default async function LawyerDashboard() {
 
           {cases.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px', color: 'rgba(14,12,10,0.4)', fontSize: '13px' }}>
-              No active cases. Win a bid to get started.
+              No active cases yet. Submit proposals to get started.
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>

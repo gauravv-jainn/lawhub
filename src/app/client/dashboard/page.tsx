@@ -17,7 +17,7 @@ export default async function ClientDashboard() {
       where: { client_id: userId },
       orderBy: { created_at: 'desc' },
       take: 5,
-      include: { _count: { select: { bids: true } } },
+      include: { _count: { select: { proposals: true } } },
     }),
     prisma.case.findMany({
       where: { client_id: userId, status: 'active' },
@@ -34,10 +34,10 @@ export default async function ClientDashboard() {
   ]);
 
   const activeBriefs = briefs.filter(b => b.status === 'open').length;
-  const totalProposals = briefs.reduce((sum, b) => sum + (b._count?.bids ?? 0), 0);
+  const totalProposals = briefs.reduce((sum, b) => sum + (b._count?.proposals ?? 0), 0);
   const totalSpent = payments.filter(p => p.status === 'released').reduce((sum, p) => sum + p.amount, 0);
 
-  const brifsWithProposals = briefs.filter(b => (b._count?.bids ?? 0) > 0 && b.status === 'open');
+  const brifsWithProposals = briefs.filter(b => (b._count?.proposals ?? 0) > 0 && b.status === 'open');
 
   return (
     <div className="page-container">
@@ -84,7 +84,7 @@ export default async function ClientDashboard() {
           <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.7)' }}>
             You have{' '}
             <strong style={{ color: 'var(--ink)' }}>
-              {brifsWithProposals.reduce((s, b) => s + (b._count?.bids ?? 0), 0)} new proposal{brifsWithProposals.reduce((s, b) => s + (b._count?.bids ?? 0), 0) !== 1 ? 's' : ''}
+              {brifsWithProposals.reduce((s, b) => s + (b._count?.proposals ?? 0), 0)} new proposal{brifsWithProposals.reduce((s, b) => s + (b._count?.proposals ?? 0), 0) !== 1 ? 's' : ''}
             </strong>{' '}
             waiting for review.{' '}
             <Link href="/client/proposals" style={{ color: 'var(--gold)', fontWeight: 500 }}>View all →</Link>
@@ -165,9 +165,9 @@ export default async function ClientDashboard() {
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
                       <StatusBadge status={brief.status} />
-                      {(brief._count?.bids ?? 0) > 0 && (
+                      {(brief._count?.proposals ?? 0) > 0 && (
                         <span style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 500 }}>
-                          {brief._count?.bids} proposal{(brief._count?.bids ?? 0) !== 1 ? 's' : ''}
+                          {brief._count?.proposals} proposal{(brief._count?.proposals ?? 0) !== 1 ? 's' : ''}
                         </span>
                       )}
                     </div>

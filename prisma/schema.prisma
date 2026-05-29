@@ -14,7 +14,6 @@ enum Role {
   lawyer
   enterprise
   ngo
-  student
   admin
 }
 
@@ -27,9 +26,11 @@ enum VerificationStatus {
 enum BriefStatus {
   open
   closed
+  expired
 }
 
-enum BidStatus {
+// Note: UI labels use "Proposal" — DB model name stays "Bid" for migration safety
+enum ProposalStatus {
   pending
   accepted
   rejected
@@ -38,42 +39,49 @@ enum BidStatus {
 
 enum CaseStatus {
   active
+  completion_requested // lawyer signals done; client has 72h to approve or dispute
   completed
   disputed
   cancelled
 }
 
+enum MilestoneStatus {
+  draft                  // lawyer defining scope — not yet submitted to client for plan approval
+  pending_client_approval // lawyer submitted plan; client must approve before work begins
+  plan_rejected          // client rejected the plan — lawyer must revise and resubmit
+  active                 // plan approved — lawyer is working
+  submitted              // lawyer marked work complete, awaiting client approval
+  approved               // client approved work — payment CTA unlocks
+  disputed               // client disputed this milestone
+  paid                   // escrow payment released
+  cancelled              // case was cancelled before this milestone
+}
+
 enum PaymentStatus {
-  pending
-  held
-  released
-  refunded
+  pending  // Razorpay order created; awaiting payment
+  held     // Razorpay confirmed; money in escrow
+  released // client released to lawyer
+  refunded // returned to client (cancellation / dispute resolution)
 }
 
-enum ConnectionStatus {
-  pending
-  accepted
-  rejected
+enum DisputeReason {
+  work_not_delivered
+  poor_quality
+  payment_withheld
+  lawyer_unresponsive
+  client_unresponsive
+  scope_disagreement
+  other
 }
 
-enum InternshipStatus {
-  active
-  closed
-  filled
-}
-
-enum ApplicationStatus {
-  pending
-  reviewed
-  shortlisted
-  rejected
-  accepted
-}
-
-enum NGOCaseStatus {
+enum DisputeStatus {
   open
-  assigned
-  closed
+  under_review
+  resolved_client  // admin ruled for client — refund triggered
+  resolved_lawyer  // admin ruled for lawyer — release triggered
+  partial_refund   // admin split the payment
+  settled          // parties agreed
+  withdrawn        // raiser withdrew
 }
 
 // ─── NextAuth models ─────────────────────────────────────────────────────────
@@ -115,43 +123,43 @@ model VerificationToken {
 // ─── Core user ───────────────────────────────────────────────────────────────
 
 model User {
-  id                      String         @id @default(cuid())
-  email                   String         @unique
-  password                String
-  full_name               String
-  phone                   String?
-  city                    String?
-  state                   String?
-  role                    Role           @default(client)
-  avatar_url              String?
-  subscription_tier       String         @default("free")
-  subscription_expires_at DateTime?
-  created_at              DateTime       @default(now())
-  updated_at              DateTime       @updatedAt
+  id         String   @id @default(cuid())
+  email      String   @unique
+  password   String
+  full_name  String
+  phone      String?
+  city       String?
+  state      String?
+  role             Role     @default(client)
+  avatar_url       String?
+  suspended        Boolean  @default(false)
+  suspended_reason String?
+  suspended_at     DateTime?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @updatedAt
 
-  accounts                Account[]
-  sessions                Session[]
-  ai_usage                AiUsage[]
-  bids                    Bid[]          @relation("LawyerBids")
-  briefs                  Brief[]        @relation("ClientBriefs")
-  case_events             CaseEvent[]
-  client_cases            Case[]         @relation("ClientCases")
-  lawyer_cases            Case[]         @relation("LawyerCases")
-  lawyer_profile          LawyerProfile?
-  sent_messages           Message[]      @relation("SentMessages")
-  notifications           Notification[]
-  client_payments         Payment[]      @relation("ClientPayments")
-  lawyer_payments         Payment[]      @relation("LawyerPayments")
-  reviews_given           Review[]       @relation("ReviewsGiven")
-  reviews_received        Review[]       @relation("ReviewsReceived")
-  subscriptions           Subscription[]
-  enterprise_profile      EnterpriseProfile?
-  ngo_profile             NGOProfile?
-  internship_applications InternshipApplication[] @relation("ApplicantApplications")
-  sent_connections        Connection[]   @relation("ConnectionRequester")
-  received_connections    Connection[]   @relation("ConnectionRecipient")
-  ngo_cases_assigned      NGOCase[]      @relation("NGOCaseLawyer")
-  student_profile         StudentProfile?
+  accounts         Account[]
+  sessions         Session[]
+  proposals        Proposal[]       @relation("LawyerProposals")
+  briefs           Brief[]          @relation("ClientBriefs")
+  case_events      CaseEvent[]
+  client_cases     Case[]           @relation("ClientCases")
+  lawyer_cases     Case[]           @relation("LawyerCases")
+  lawyer_profile   LawyerProfile?
+  sent_messages    Message[]        @relation("SentMessages")
+  notifications    Notification[]
+  client_payments  Payment[]        @relation("ClientPayments")
+  lawyer_payments  Payment[]        @relation("LawyerPayments")
+  reviews_given    Review[]         @relation("ReviewsGiven")
+  reviews_received Review[]         @relation("ReviewsReceived")
+  enterprise_profile EnterpriseProfile?
+  ngo_profile      NGOProfile?
+  disputes_raised     Dispute[]            @relation("DisputesRaised")
+  disputes_handled    Dispute[]            @relation("DisputesHandled")
+  cancelled_cases     Case[]               @relation("CancelledCases")
+  dispute_evidence    DisputeEvidence[]
+  milestone_revisions MilestoneRevision[]
+  admin_logs          AdminLog[]
 
   @@index([role])
   @@map("users")
@@ -160,185 +168,74 @@ model User {
 // ─── Lawyer ──────────────────────────────────────────────────────────────────
 
 model LawyerProfile {
-  id                    String             @id
-  bci_number            String             @unique
-  bar_council           String
-  primary_court         String
-  experience_years      Int                @default(0)
-  practice_areas        String[]
-  lawyer_type           String             @default("junior_advocate")
-  only_legal_advice     Boolean            @default(false)
-  bio                   String?
-  verification_status   VerificationStatus @default(pending)
-  rejection_reason      String?
-  bci_doc_url           String?
-  aadhaar_doc_url       String?
-  degree_doc_url        String?
-  avg_rating            Float              @default(0)
-  review_count          Int                @default(0)
-  total_cases           Int                @default(0)
-  wins                  Int                @default(0)
-  created_at            DateTime           @default(now())
-  updated_at            DateTime           @updatedAt
-  user                  User               @relation(fields: [id], references: [id], onDelete: Cascade)
-  enterprise_membership EnterpriseAssociate?
+  id                  String             @id
+  bci_number          String             @unique
+  bar_council         String
+  primary_court       String
+  experience_years    Int                @default(0)
+  practice_areas      String[]
+  lawyer_type         String             @default("junior_advocate")
+  only_legal_advice   Boolean            @default(false)
+  bio                 String?
+  verification_status VerificationStatus @default(pending)
+  rejection_reason    String?
+  bci_doc_url         String?
+  aadhaar_doc_url     String?
+  degree_doc_url      String?
+  avg_rating          Float              @default(0)
+  review_count        Int                @default(0)
+  total_cases         Int                @default(0)
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  user                User               @relation(fields: [id], references: [id], onDelete: Cascade)
 
   @@index([verification_status])
   @@index([avg_rating(sort: Desc)])
   @@map("lawyer_profiles")
 }
 
-// ─── Enterprise ──────────────────────────────────────────────────────────────
+// ─── Enterprise (law firms — for future internship posting) ──────────────────
 
 model EnterpriseProfile {
-  id                  String   @id
+  id                  String             @id
   firm_name           String
-  registration_no     String   @unique
-  firm_type           String   @default("law_firm")
+  registration_no     String             @unique
+  firm_type           String             @default("law_firm")
   website             String?
   description         String?
   city                String?
   state               String?
   verification_status VerificationStatus @default(pending)
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-  user                User     @relation(fields: [id], references: [id], onDelete: Cascade)
-  associates          EnterpriseAssociate[]
-  internships         InternshipPosting[]
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  user                User               @relation(fields: [id], references: [id], onDelete: Cascade)
 
   @@map("enterprise_profiles")
-}
-
-model EnterpriseAssociate {
-  id            String            @id @default(cuid())
-  enterprise_id String
-  lawyer_id     String            @unique
-  role          String            @default("associate")
-  joined_at     DateTime          @default(now())
-  enterprise    EnterpriseProfile @relation(fields: [enterprise_id], references: [id], onDelete: Cascade)
-  lawyer        LawyerProfile     @relation(fields: [lawyer_id], references: [id], onDelete: Cascade)
-
-  @@index([enterprise_id])
-  @@map("enterprise_associates")
-}
-
-// ─── Student ─────────────────────────────────────────────────────────────────
-
-model StudentProfile {
-  id         String   @id @default(cuid())
-  user_id    String   @unique
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  law_school String?
-  year       String?
-  skills     String[] @default([])
-  bio        String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
-
-  @@map("student_profiles")
 }
 
 // ─── NGO ─────────────────────────────────────────────────────────────────────
 
 model NGOProfile {
-  id                  String     @id
+  id                  String             @id
   org_name            String
-  registration_no     String     @unique
+  registration_no     String             @unique
   cause_areas         String[]
   city                String?
   state               String?
   website             String?
   description         String?
   verification_status VerificationStatus @default(pending)
-  created_at          DateTime   @default(now())
-  updated_at          DateTime   @updatedAt
-  user                User       @relation(fields: [id], references: [id], onDelete: Cascade)
-  cases               NGOCase[]
+  created_at          DateTime           @default(now())
+  updated_at          DateTime           @updatedAt
+  user                User               @relation(fields: [id], references: [id], onDelete: Cascade)
 
   @@map("ngo_profiles")
 }
 
-model NGOCase {
-  id          String        @id @default(cuid())
-  ngo_id      String
-  title       String
-  description String
-  category    String
-  location    String?
-  status      NGOCaseStatus @default(open)
-  lawyer_id   String?
-  created_at  DateTime      @default(now())
-  updated_at  DateTime      @updatedAt
-  ngo         NGOProfile    @relation(fields: [ngo_id], references: [id], onDelete: Cascade)
-  lawyer      User?         @relation("NGOCaseLawyer", fields: [lawyer_id], references: [id])
-
-  @@index([ngo_id, status])
-  @@map("ngo_cases")
-}
-
-// ─── Internships ─────────────────────────────────────────────────────────────
-
-model InternshipPosting {
-  id            String              @id @default(cuid())
-  enterprise_id String
-  title         String
-  description   String
-  duration      String
-  stipend       String?
-  skills        String[]
-  location      String?
-  remote        Boolean             @default(false)
-  openings      Int                 @default(1)
-  closes_at     DateTime?
-  status        InternshipStatus    @default(active)
-  created_at    DateTime            @default(now())
-  updated_at    DateTime            @updatedAt
-  enterprise    EnterpriseProfile   @relation(fields: [enterprise_id], references: [id], onDelete: Cascade)
-  applications  InternshipApplication[]
-
-  @@index([enterprise_id])
-  @@index([status, created_at(sort: Desc)])
-  @@map("internship_postings")
-}
-
-model InternshipApplication {
-  id           String            @id @default(cuid())
-  posting_id   String
-  applicant_id String
-  cover_letter String
-  resume_url   String?
-  status       ApplicationStatus @default(pending)
-  created_at   DateTime          @default(now())
-  posting      InternshipPosting @relation(fields: [posting_id], references: [id], onDelete: Cascade)
-  applicant    User              @relation("ApplicantApplications", fields: [applicant_id], references: [id], onDelete: Cascade)
-
-  @@unique([posting_id, applicant_id])
-  @@index([applicant_id, created_at(sort: Desc)])
-  @@map("internship_applications")
-}
-
-// ─── Networking ──────────────────────────────────────────────────────────────
-
-model Connection {
-  id           String           @id @default(cuid())
-  requester_id String
-  recipient_id String
-  status       ConnectionStatus @default(pending)
-  created_at   DateTime         @default(now())
-  updated_at   DateTime         @updatedAt
-  requester    User             @relation("ConnectionRequester", fields: [requester_id], references: [id], onDelete: Cascade)
-  recipient    User             @relation("ConnectionRecipient", fields: [recipient_id], references: [id], onDelete: Cascade)
-
-  @@unique([requester_id, recipient_id])
-  @@index([requester_id, status])
-  @@index([recipient_id, status])
-  @@map("connections")
-}
-
-// ─── Core marketplace ────────────────────────────────────────────────────────
+// ─── Core marketplace: Brief → Proposal → Case ───────────────────────────────
 
 model Brief {
-  id                 String          @id @default(cuid())
+  id                 String        @id @default(cuid())
   client_id          String
   title              String
   category           String
@@ -350,77 +247,134 @@ model Brief {
   structured_summary Json?
   budget_min         Int?
   budget_max         Int?
-  status             BriefStatus     @default(open)
-  closes_at          DateTime?
-  created_at         DateTime        @default(now())
-  updated_at         DateTime        @updatedAt
-  bids               Bid[]
+  pro_bono           Boolean       @default(false) // NGO zero-fee cases
+  status             BriefStatus   @default(open)
+  expires_at         DateTime      // required — default: now() + 30 days
+  created_at         DateTime      @default(now())
+  updated_at         DateTime      @updatedAt
+  proposals          Proposal[]
   documents          BriefDocument[]
-  client             User            @relation("ClientBriefs", fields: [client_id], references: [id])
+  client             User          @relation("ClientBriefs", fields: [client_id], references: [id])
   case               Case?
 
   @@index([client_id, created_at(sort: Desc)])
   @@index([status, created_at(sort: Desc)])
   @@index([category])
+  @@index([expires_at])
   @@map("briefs")
 }
 
-model Bid {
-  id                  String    @id @default(cuid())
+// "Proposal" in UI — "Bid" table name kept in DB for zero-migration-risk rename
+model Proposal {
+  id                  String         @id @default(cuid())
   brief_id            String
   lawyer_id           String
   proposed_fee        Int
   fee_structure       String?
-  milestone_count     Int       @default(1)
+  milestone_count     Int            @default(1) // how many milestones lawyer proposes
   strategy_text       String
   cover_letter        String
   relevant_experience String?
   availability        String?
   estimated_timeline  String?
-  status              BidStatus @default(pending)
-  created_at          DateTime  @default(now())
-  brief               Brief     @relation(fields: [brief_id], references: [id])
-  lawyer              User      @relation("LawyerBids", fields: [lawyer_id], references: [id])
+  status              ProposalStatus @default(pending)
+  withdrawn_at        DateTime?
+  created_at          DateTime       @default(now())
+  brief               Brief          @relation(fields: [brief_id], references: [id])
+  lawyer              User           @relation("LawyerProposals", fields: [lawyer_id], references: [id])
 
   @@unique([brief_id, lawyer_id])
   @@index([brief_id, status])
   @@index([lawyer_id, created_at(sort: Desc)])
-  @@map("bids")
+  @@map("bids") // keep "bids" table name to avoid data migration
 }
 
 model Case {
-  id                String      @id @default(cuid())
-  brief_id          String      @unique
-  client_id         String
-  lawyer_id         String
-  title             String
-  status            CaseStatus  @default(active)
-  total_fee         Int         @default(0)
-  fee_structure     String      @default("flat")
-  milestone_count   Int         @default(1)
-  current_milestone Int         @default(0)
-  next_hearing_date String?
-  created_at        DateTime    @default(now())
-  updated_at        DateTime    @updatedAt
-  events            CaseEvent[]
-  brief             Brief       @relation(fields: [brief_id], references: [id])
-  client            User        @relation("ClientCases", fields: [client_id], references: [id])
-  lawyer            User        @relation("LawyerCases", fields: [lawyer_id], references: [id])
-  messages          Message[]
-  payments          Payment[]
-  reviews           Review[]
+  id                      String      @id @default(cuid())
+  brief_id                String      @unique
+  client_id               String
+  lawyer_id               String
+  title                   String
+  status                  CaseStatus  @default(active)
+  total_fee               Int         @default(0)
+  fee_structure           String      @default("flat")
+  next_hearing_date       String?
+  // Mutual completion flow
+  completion_requested_at DateTime?   // set when lawyer requests completion
+  // Cancellation
+  cancelled_by_id         String?
+  cancellation_reason     String?
+  cancelled_at            DateTime?
+  created_at              DateTime    @default(now())
+  updated_at              DateTime    @updatedAt
+
+  brief        Brief       @relation(fields: [brief_id], references: [id])
+  client       User        @relation("ClientCases", fields: [client_id], references: [id])
+  lawyer       User        @relation("LawyerCases", fields: [lawyer_id], references: [id])
+  cancelled_by User?       @relation("CancelledCases", fields: [cancelled_by_id], references: [id])
+  milestones   Milestone[]
+  messages     Message[]
+  payments     Payment[]
+  events       CaseEvent[]
+  reviews      Review[]
+  dispute      Dispute?
 
   @@index([client_id, status])
   @@index([lawyer_id, status])
   @@map("cases")
 }
 
+// ─── Milestone (proper contract infrastructure) ───────────────────────────────
+
+model Milestone {
+  id           String          @id @default(cuid())
+  case_id      String
+  number       Int             // 1-based ordering
+  title        String
+  description  String?         // what work is involved
+  deliverables String?         // explicit output the client will receive
+  amount       Int             // in paise — agreed amount for this milestone
+  due_date     DateTime?       // target completion date
+  status                  MilestoneStatus @default(draft)
+  plan_submitted_at       DateTime?       // when lawyer submitted plan for client approval
+  plan_approved_at        DateTime?       // when client approved the plan
+  submitted_at            DateTime?       // when lawyer clicked "Submit Work for Approval"
+  approved_at             DateTime?       // when client clicked "Approve Work"
+  created_at              DateTime        @default(now())
+  updated_at              DateTime        @updatedAt
+
+  case        Case                  @relation(fields: [case_id], references: [id])
+  payment     Payment?
+  attachments MilestoneAttachment[]
+  revisions   MilestoneRevision[]
+
+  @@unique([case_id, number])
+  @@index([case_id, status])
+  @@map("milestones")
+}
+
+model MilestoneAttachment {
+  id           String    @id @default(cuid())
+  milestone_id String
+  name         String
+  url          String
+  uploaded_by  String    // user_id — for display attribution
+  created_at   DateTime  @default(now())
+  milestone    Milestone @relation(fields: [milestone_id], references: [id], onDelete: Cascade)
+
+  @@index([milestone_id])
+  @@map("milestone_attachments")
+}
+
+// ─── Payments ─────────────────────────────────────────────────────────────────
+
 model Payment {
   id                  String        @id @default(cuid())
   case_id             String
   client_id           String
   lawyer_id           String
-  milestone_number    Int
+  milestone_id        String?       @unique // explicit milestone link
+  milestone_number    Int           // kept for display convenience
   amount              Int
   platform_fee        Int
   net_amount          Int
@@ -432,11 +386,12 @@ model Payment {
   razorpay_payment_id String?
   paid_at             DateTime?
   created_at          DateTime      @default(now())
-  case                Case          @relation(fields: [case_id], references: [id])
-  client              User          @relation("ClientPayments", fields: [client_id], references: [id])
-  lawyer              User          @relation("LawyerPayments", fields: [lawyer_id], references: [id])
 
-  @@unique([case_id, milestone_number])
+  case      Case       @relation(fields: [case_id], references: [id])
+  client    User       @relation("ClientPayments", fields: [client_id], references: [id])
+  lawyer    User       @relation("LawyerPayments", fields: [lawyer_id], references: [id])
+  milestone Milestone? @relation(fields: [milestone_id], references: [id])
+
   @@index([case_id])
   @@index([client_id])
   @@index([lawyer_id])
@@ -444,44 +399,59 @@ model Payment {
   @@map("payments")
 }
 
-model Subscription {
-  id           String   @id @default(cuid())
-  lawyer_id    String
-  tier         String
-  amount_paid  Int
-  starts_at    DateTime @default(now())
-  expires_at   DateTime
-  payment_id   String?
-  order_id     String?
-  active       Boolean  @default(true)
-  created_at   DateTime @default(now())
-  lawyer       User     @relation(fields: [lawyer_id], references: [id])
+// ─── Disputes ─────────────────────────────────────────────────────────────────
 
-  @@index([lawyer_id, active])
-  @@map("subscriptions")
+model Dispute {
+  id           String        @id @default(cuid())
+  case_id      String        @unique // one active dispute per case
+  raised_by_id String
+  reason       DisputeReason
+  description  String
+  milestone_id String?       // optional: dispute about a specific milestone
+  status       DisputeStatus @default(open)
+  admin_id     String?       // admin assigned to handle
+  resolution   String?       // admin resolution notes
+  resolved_at  DateTime?
+  created_at   DateTime      @default(now())
+  updated_at   DateTime      @updatedAt
+
+  case      Case              @relation(fields: [case_id], references: [id])
+  raised_by User              @relation("DisputesRaised", fields: [raised_by_id], references: [id])
+  admin     User?             @relation("DisputesHandled", fields: [admin_id], references: [id])
+  evidence  DisputeEvidence[]
+
+  @@index([status, created_at(sort: Desc)])
+  @@map("disputes")
 }
 
-model Notification {
+// ─── Reviews ──────────────────────────────────────────────────────────────────
+
+model Review {
   id         String   @id @default(cuid())
-  user_id    String
-  type       String
-  title      String
-  body       String
-  link       String?
-  is_read    Boolean  @default(false)
+  case_id    String
+  client_id  String
+  lawyer_id  String
+  rating     Int
+  review     String
   created_at DateTime @default(now())
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  case       Case     @relation(fields: [case_id], references: [id])
+  client     User     @relation("ReviewsGiven", fields: [client_id], references: [id])
+  lawyer     User     @relation("ReviewsReceived", fields: [lawyer_id], references: [id])
 
-  @@index([user_id, created_at(sort: Desc)])
-  @@index([user_id, is_read])
-  @@map("notifications")
+  @@unique([case_id, client_id])
+  @@index([lawyer_id])
+  @@map("reviews")
 }
+
+// ─── Communication ────────────────────────────────────────────────────────────
 
 model Message {
   id         String   @id @default(cuid())
   case_id    String
   sender_id  String
   content    String
+  file_url   String?  // optional file attachment
+  file_name  String?  // display name for the attachment
   created_at DateTime @default(now())
   case       Case     @relation(fields: [case_id], references: [id])
   sender     User     @relation("SentMessages", fields: [sender_id], references: [id])
@@ -505,22 +475,7 @@ model CaseEvent {
   @@map("case_events")
 }
 
-model Review {
-  id         String   @id @default(cuid())
-  case_id    String
-  client_id  String
-  lawyer_id  String
-  rating     Int
-  review     String
-  created_at DateTime @default(now())
-  case       Case     @relation(fields: [case_id], references: [id])
-  client     User     @relation("ReviewsGiven", fields: [client_id], references: [id])
-  lawyer     User     @relation("ReviewsReceived", fields: [lawyer_id], references: [id])
-
-  @@unique([case_id, client_id])
-  @@index([lawyer_id])
-  @@map("reviews")
-}
+// ─── Documents ───────────────────────────────────────────────────────────────
 
 model BriefDocument {
   id         String   @id @default(cuid())
@@ -534,14 +489,76 @@ model BriefDocument {
   @@map("brief_documents")
 }
 
-model AiUsage {
-  id          String   @id @default(cuid())
-  user_id     String
-  feature     String
-  tokens_used Int      @default(0)
-  created_at  DateTime @default(now())
-  user        User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+// ─── Milestone Revision History ──────────────────────────────────────────────
 
-  @@index([user_id, created_at])
-  @@map("ai_usage")
+model MilestoneRevision {
+  id           String    @id @default(cuid())
+  milestone_id String
+  changed_by   String
+  title        String?
+  description  String?
+  deliverables String?
+  due_date     DateTime?
+  amount       Int?
+  change_note  String?
+  created_at   DateTime  @default(now())
+  milestone    Milestone @relation(fields: [milestone_id], references: [id], onDelete: Cascade)
+  actor        User      @relation(fields: [changed_by], references: [id])
+
+  @@index([milestone_id])
+  @@map("milestone_revisions")
+}
+
+// ─── Dispute Evidence ─────────────────────────────────────────────────────────
+
+model DisputeEvidence {
+  id          String   @id @default(cuid())
+  dispute_id  String
+  uploaded_by String
+  name        String
+  url         String
+  file_type   String   @default("document") // document | image | screenshot
+  created_at  DateTime @default(now())
+  dispute     Dispute  @relation(fields: [dispute_id], references: [id], onDelete: Cascade)
+  uploader    User     @relation(fields: [uploaded_by], references: [id])
+
+  @@index([dispute_id])
+  @@map("dispute_evidence")
+}
+
+// ─── Admin Audit Log ─────────────────────────────────────────────────────────
+
+model AdminLog {
+  id          String   @id @default(cuid())
+  admin_id    String
+  action      String   // e.g. "suspend_user", "force_cancel_case", "resolve_dispute"
+  target_id   String?  // user_id, case_id, dispute_id, payment_id
+  target_type String?  // "user" | "case" | "dispute" | "payment" | "lawyer"
+  notes       String?  // admin's note about why
+  metadata    Json?    // extra structured data (e.g. old status, new status)
+  created_at  DateTime @default(now())
+  admin       User     @relation(fields: [admin_id], references: [id])
+
+  @@index([admin_id, created_at(sort: Desc)])
+  @@index([target_id, target_type])
+  @@map("admin_logs")
+}
+
+// ─── Notifications ────────────────────────────────────────────────────────────
+
+model Notification {
+  id         String   @id @default(cuid())
+  user_id    String
+  type       String
+  title      String
+  body       String
+  link       String?
+  is_read    Boolean  @default(false)
+  email_sent Boolean  @default(false) // tracks whether email was dispatched
+  created_at DateTime @default(now())
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id, created_at(sort: Desc)])
+  @@index([user_id, is_read])
+  @@map("notifications")
 }

@@ -11,7 +11,7 @@ export default function AcceptProposalButton({ briefId, bidId }: { briefId: stri
     if (!confirm('Accept this proposal? This will engage the advocate and close bidding on your brief.')) return;
     setLoading(true);
 
-    const res = await fetch('/api/bids/accept', {
+    const res = await fetch('/api/proposals/accept', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bidId }),

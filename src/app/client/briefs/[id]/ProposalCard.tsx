@@ -26,7 +26,7 @@ interface Bid {
       avg_rating: number | null;
       review_count: number | null;
       total_cases: number | null;
-      wins: number | null;
+
       primary_court: string | null;
       bci_number: string | null;
     } | null;
@@ -49,15 +49,13 @@ export default function ProposalCard({ bid, index, briefStatus, briefId }: Props
   const lawyerProfile = bid.lawyer?.lawyer_profile;
   const name = bid.lawyer?.full_name ?? 'Unknown Advocate';
   const initials = name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
-  const winRate = (lawyerProfile?.total_cases ?? 0) > 0
-    ? Math.round(((lawyerProfile?.wins ?? 0) / (lawyerProfile?.total_cases ?? 1)) * 100)
-    : 0;
+  const totalCases = lawyerProfile?.total_cases ?? 0;
 
   const avatarColors = ['var(--teal)', 'var(--ink)', '#5b21b6', '#b45309'];
 
   async function handleAccept() {
     setAccepting(true);
-    const res = await fetch('/api/bids/accept', {
+    const res = await fetch('/api/proposals/accept', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ bidId: bid.id }),
@@ -110,8 +108,7 @@ export default function ProposalCard({ bid, index, briefStatus, briefId }: Props
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <RatingStars rating={lawyerProfile?.avg_rating ?? 0} count={lawyerProfile?.review_count ?? 0} />
-              <span style={{ fontSize: '11px', color: '#1A6B3A', fontWeight: 500 }}>{winRate}% win rate</span>
-              <span style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)' }}>{lawyerProfile?.total_cases} cases</span>
+              <span style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)' }}>{totalCases} cases</span>
             </div>
           </div>
 

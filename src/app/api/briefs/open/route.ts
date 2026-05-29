@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
       take: 50,
       include: {
         client: { select: { full_name: true, city: true, state: true } },
-        _count: { select: { bids: true } },
+        _count: { select: { proposals: true } },
       },
     });
 

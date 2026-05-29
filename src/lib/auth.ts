@@ -50,12 +50,16 @@ export const authOptions: NextAuthOptions = {
             full_name: true,
             password: true,
             role: true,
+            suspended: true,
           },
         });
         if (!user) return null;
 
         const passwordMatch = await bcrypt.compare(credentials.password, user.password);
         if (!passwordMatch) return null;
+
+        // Suspended users cannot log in
+        if (user.suspended) return null;
 
         return {
           id: user.id,

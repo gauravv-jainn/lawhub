@@ -48,8 +48,6 @@ function LoginForm() {
       router.push('/enterprise/dashboard');
     } else if (role === 'ngo') {
       router.push('/ngo/dashboard');
-    } else if (role === 'student') {
-      router.push('/student/internships');
     } else if (role === 'admin') {
       router.push('/admin/dashboard');
     } else {
