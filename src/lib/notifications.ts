@@ -36,25 +36,24 @@ export async function notify({
   sendEmail = false,
   emailData = {},
 }: NotifyParams): Promise<void> {
-  // 1. Always create in-app notification
-  await prisma.notification.create({
-    data: {
-      user_id: userId,
-      type,
-      title,
-      body,
-      link,
-      email_sent: false,
-    },
-  });
+  // Parallelize: always create notification; fetch user only when email needed
+  const [, user] = await Promise.all([
+    prisma.notification.create({
+      data: {
+        user_id: userId,
+        type,
+        title,
+        body,
+        link,
+        email_sent: false,
+      },
+    }),
+    sendEmail
+      ? prisma.user.findUnique({ where: { id: userId }, select: { email: true, full_name: true } })
+      : Promise.resolve(null),
+  ]);
 
-  // 2. Optionally fire email
   if (!sendEmail) return;
-
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { email: true, full_name: true },
-  });
   if (!user) return;
 
   try {

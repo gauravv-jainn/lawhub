@@ -8,23 +8,33 @@ export default async function AdminRevenuePage() {
   const session = await getServerSession(authOptions);
   if (!session?.user || session.user.role !== 'admin') redirect('/auth/login');
 
-  const payments = await prisma.payment.findMany({
-    orderBy: { created_at: 'desc' },
-    include: {
-      case: {
-        select: {
-          title: true,
-          client: { select: { full_name: true } },
-          lawyer: { select: { full_name: true } },
+  const [revenueAgg, gmvAgg, payments] = await Promise.all([
+    prisma.payment.aggregate({
+      where: { status: 'released' },
+      _sum: { platform_fee: true },
+    }),
+    prisma.payment.aggregate({
+      where: { status: { not: 'refunded' } },
+      _sum: { amount: true },
+    }),
+    prisma.payment.findMany({
+      orderBy: { created_at: 'desc' },
+      take: 100,
+      include: {
+        case: {
+          select: {
+            title: true,
+            client: { select: { full_name: true } },
+            lawyer: { select: { full_name: true } },
+          },
         },
       },
-    },
-  });
+    }),
+  ]);
 
   const allPayments = (payments ?? []) as any[];
-  const released = allPayments.filter(p => p.status === 'released');
-  const totalRevenue = released.reduce((s: number, p: any) => s + (p.platform_fee ?? 0), 0);
-  const totalGMV = allPayments.filter(p => p.status !== 'refunded').reduce((s, p) => s + p.amount, 0);
+  const totalRevenue = revenueAgg._sum.platform_fee ?? 0;
+  const totalGMV = gmvAgg._sum.amount ?? 0;
 
   return (
     <div className="page-container">

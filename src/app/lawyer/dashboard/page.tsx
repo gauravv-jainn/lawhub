@@ -12,9 +12,9 @@ export default async function LawyerDashboard() {
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const [lawyerProfile, bids, cases, payments, briefs] = await Promise.all([
+  const [lawyerProfile, openBidsCount, cases, totalEarnedResult, inEscrowResult, briefs] = await Promise.all([
     prisma.lawyerProfile.findUnique({ where: { id: userId } }),
-    prisma.proposal.findMany({ where: { lawyer_id: userId }, select: { status: true } }),
+    prisma.proposal.count({ where: { lawyer_id: userId, status: 'pending' } }),
     prisma.case.findMany({
       where: { lawyer_id: userId, status: 'active' },
       take: 5,
@@ -23,9 +23,13 @@ export default async function LawyerDashboard() {
         client: { select: { full_name: true } },
       },
     }),
-    prisma.payment.findMany({
-      where: { lawyer_id: userId },
-      select: { amount: true, status: true },
+    prisma.payment.aggregate({
+      where: { lawyer_id: userId, status: 'released' },
+      _sum: { amount: true },
+    }),
+    prisma.payment.aggregate({
+      where: { lawyer_id: userId, status: 'held' },
+      _sum: { amount: true },
     }),
     prisma.brief.findMany({
       where: { status: 'open' },
@@ -35,9 +39,9 @@ export default async function LawyerDashboard() {
   ]);
 
   const profile = lawyerProfile;
-  const openBids = bids.filter(b => b.status === 'pending').length;
-  const totalEarned = payments.filter(p => p.status === 'released').reduce((s, p) => s + p.amount, 0);
-  const inEscrow = payments.filter(p => p.status === 'held').reduce((s, p) => s + p.amount, 0);
+  const openBids = openBidsCount;
+  const totalEarned = totalEarnedResult._sum.amount ?? 0;
+  const inEscrow = inEscrowResult._sum.amount ?? 0;
   const avgRating = profile?.avg_rating ? profile.avg_rating.toFixed(1) : '—';
 
   const isPending = profile?.verification_status === 'pending';

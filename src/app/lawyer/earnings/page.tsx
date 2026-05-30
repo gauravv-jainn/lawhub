@@ -11,28 +11,33 @@ export default async function LawyerEarningsPage() {
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const payments = await prisma.payment.findMany({
-    where: { lawyer_id: userId },
-    orderBy: { created_at: 'desc' },
-    include: {
-      case: {
-        select: {
-          title: true,
-          client: { select: { full_name: true } },
+  const [totalEarnedResult, netReceivedResult, inEscrowResult, pendingResult, payments] = await Promise.all([
+    prisma.payment.aggregate({ where: { lawyer_id: userId, status: 'released' }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { lawyer_id: userId, status: 'released' }, _sum: { net_amount: true } }),
+    prisma.payment.aggregate({ where: { lawyer_id: userId, status: 'held' }, _sum: { amount: true } }),
+    prisma.payment.aggregate({ where: { lawyer_id: userId, status: 'pending' }, _sum: { amount: true } }),
+    prisma.payment.findMany({
+      where: { lawyer_id: userId },
+      orderBy: { created_at: 'desc' },
+      take: 100,
+      include: {
+        case: {
+          select: {
+            title: true,
+            client: { select: { full_name: true } },
+          },
         },
       },
-    },
-  });
+    }),
+  ]);
 
   const allPayments = payments ?? [];
   const released = allPayments.filter(p => p.status === 'released');
-  const held = allPayments.filter(p => p.status === 'held');
-  const pending = allPayments.filter(p => p.status === 'pending');
 
-  const totalEarned = released.reduce((s, p) => s + p.amount, 0);
-  const netReceived = released.reduce((s: number, p: any) => s + (p.net_amount ?? 0), 0);
-  const inEscrow = held.reduce((s, p) => s + p.amount, 0);
-  const pendingAmount = pending.reduce((s, p) => s + p.amount, 0);
+  const totalEarned = totalEarnedResult._sum.amount ?? 0;
+  const netReceived = netReceivedResult._sum.net_amount ?? 0;
+  const inEscrow = inEscrowResult._sum.amount ?? 0;
+  const pendingAmount = pendingResult._sum.amount ?? 0;
 
   // Build monthly data for chart
   const monthlyData: Record<string, number> = {};

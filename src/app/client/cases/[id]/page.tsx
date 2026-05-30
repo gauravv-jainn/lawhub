@@ -56,6 +56,7 @@ export default async function ClientCaseDetailPage({
     prisma.caseEvent.findMany({
       where: { case_id: params.id },
       orderBy: { created_at: 'asc' },
+      take: 200,
       include: { actor: { select: { full_name: true, role: true } } },
     }),
     prisma.review.findFirst({
