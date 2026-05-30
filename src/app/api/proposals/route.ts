@@ -18,11 +18,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only verified lawyers may submit proposals.' }, { status: 401 });
   }
 
-  // Verify lawyer is actually verified before allowing proposals
-  const lawyerProfile = await prisma.lawyerProfile.findUnique({
-    where: { id: session.user.id },
-    select: { verification_status: true },
-  });
+  // Verify email + lawyer profile status before allowing proposals
+  const [userRecord, lawyerProfile] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { email_verified_at: true },
+    }),
+    prisma.lawyerProfile.findUnique({
+      where: { id: session.user.id },
+      select: { verification_status: true },
+    }),
+  ]);
+  if (!userRecord?.email_verified_at) {
+    return NextResponse.json(
+      { error: 'Please verify your email address before submitting proposals.' },
+      { status: 403 }
+    );
+  }
   if (!lawyerProfile || lawyerProfile.verification_status !== 'verified') {
     return NextResponse.json(
       { error: 'Your account must be verified before submitting proposals.' },

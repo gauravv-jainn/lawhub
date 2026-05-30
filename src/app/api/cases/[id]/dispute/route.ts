@@ -10,6 +10,7 @@ import prisma from '@/lib/prisma';
 import { disputeCreateSchema } from '@/lib/utils/validators';
 import { notify } from '@/lib/notifications';
 import { isPrismaUniqueError } from '@/lib/utils/errors';
+import { writeLedger } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 // ─── POST — raise a dispute ──────────────────────────────────────────────────
@@ -92,6 +93,22 @@ export async function POST(
 
       return created;
     });
+
+    // Write ledger entries for each held payment being frozen
+    const heldPayments = await prisma.payment.findMany({
+      where: { case_id: params.id, status: 'held' },
+      select: { id: true, amount: true },
+    });
+    for (const pmt of heldPayments) {
+      await writeLedger({
+        caseId:      params.id,
+        eventType:   'dispute_frozen',
+        amount:      pmt.amount,
+        description: `Payment frozen: dispute raised. Reason: ${reason}`,
+        paymentId:   pmt.id,
+        actorId:     session.user.id,
+      });
+    }
 
     // Notify the other party
     const isClient     = session.user.id === caseRow.client_id;
@@ -181,6 +198,22 @@ export async function DELETE(
       },
     });
   });
+
+  // Write ledger entries for unfreezing payments
+  const heldAfterWithdraw = await prisma.payment.findMany({
+    where: { case_id: params.id, status: 'held' },
+    select: { id: true, amount: true },
+  });
+  for (const pmt of heldAfterWithdraw) {
+    await writeLedger({
+      caseId:      params.id,
+      eventType:   'dispute_unfrozen',
+      amount:      pmt.amount,
+      description: 'Payment unfrozen: dispute withdrawn',
+      paymentId:   pmt.id,
+      actorId:     session.user.id,
+    });
+  }
 
   return NextResponse.json({ ok: true });
 }

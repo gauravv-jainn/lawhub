@@ -27,6 +27,16 @@ export default withAuth(
     if (pathname.startsWith('/admin') && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/auth/login', req.url));
     }
+
+    // Admin 2FA enforcement — all /admin routes except /admin/2fa/*
+    if (pathname.startsWith('/admin') && !pathname.startsWith('/admin/2fa') && token?.role === 'admin') {
+      if (!token.twoFactorVerified) {
+        if (!token.adminTwoFactorSetupDone) {
+          return NextResponse.redirect(new URL('/admin/2fa/setup', req.url));
+        }
+        return NextResponse.redirect(new URL('/admin/2fa/verify', req.url));
+      }
+    }
     if (pathname.startsWith('/enterprise') && token?.role !== 'enterprise' && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/auth/login', req.url));
     }

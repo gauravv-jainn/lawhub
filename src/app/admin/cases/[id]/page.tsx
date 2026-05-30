@@ -22,11 +22,9 @@ export default async function AdminCaseDetailPage({ params }: { params: { id: st
         include: { payment: true, attachments: true },
       },
       payments: { orderBy: { milestone_number: 'asc' } },
-      events:   { orderBy: { created_at: 'asc' } },
-      messages: {
+      events: {
         orderBy: { created_at: 'asc' },
-        include: { sender: { select: { full_name: true, role: true } } },
-        take: 50,
+        include: { actor: { select: { full_name: true, role: true } } },
       },
       dispute: true,
     },
@@ -140,36 +138,14 @@ export default async function AdminCaseDetailPage({ params }: { params: { id: st
             )}
           </div>
 
-          {/* Message thread */}
-          <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
-            <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '16px', fontWeight: 600, color: 'var(--ink)', marginBottom: '16px' }}>
-              Message Thread
-            </h3>
-            <div style={{ maxHeight: '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {c.messages.length === 0 ? (
-                <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.4)' }}>No messages.</p>
-              ) : c.messages.map((msg) => (
-                <div key={msg.id} style={{ display: 'flex', gap: '10px' }}>
-                  <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: msg.sender.role === 'lawyer' ? 'var(--teal)' : 'var(--gold)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', fontWeight: 700, flexShrink: 0 }}>
-                    {msg.sender.full_name[0]}
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginBottom: '2px' }}>
-                      <strong>{msg.sender.full_name}</strong> · {formatRelativeTime(msg.created_at.toISOString())}
-                    </div>
-                    <p style={{ fontSize: '13px', color: 'var(--ink)', margin: 0, lineHeight: 1.5 }}>{msg.content}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Timeline */}
+          {/* Case Timeline */}
           <div style={{ background: 'white', border: '1px solid rgba(14,12,10,0.08)', borderRadius: '12px', padding: '20px' }}>
             <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '16px', fontWeight: 600, color: 'var(--ink)', marginBottom: '16px' }}>
               Case Timeline
             </h3>
-            {c.events.map((ev, i) => (
+            {c.events.length === 0 ? (
+              <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.4)' }}>No events yet.</p>
+            ) : c.events.map((ev, i) => (
               <div key={ev.id} style={{ display: 'flex', gap: '12px', paddingBottom: '14px', position: 'relative' }}>
                 {i < c.events.length - 1 && (
                   <div style={{ position: 'absolute', left: '10px', top: '22px', bottom: 0, width: '1px', background: 'rgba(14,12,10,0.08)' }} />
@@ -178,6 +154,11 @@ export default async function AdminCaseDetailPage({ params }: { params: { id: st
                 <div>
                   <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)' }}>{ev.title}</div>
                   {ev.description && <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.45)' }}>{ev.description}</div>}
+                  {'actor' in ev && ev.actor && (
+                    <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.35)', marginTop: '2px' }}>
+                      by {(ev.actor as { full_name: string }).full_name}
+                    </div>
+                  )}
                   <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.3)' }}>{formatRelativeTime(ev.created_at.toISOString())}</div>
                 </div>
               </div>

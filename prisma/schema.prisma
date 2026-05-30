@@ -84,6 +84,27 @@ enum DisputeStatus {
   withdrawn        // raiser withdrew
 }
 
+enum LedgerEventType {
+  order_created      // Razorpay order created
+  payment_captured   // Razorpay captured payment; money in escrow
+  escrow_held        // Payment confirmed held in our system
+  payment_released   // Client released escrow to lawyer
+  payment_refunded   // Payment returned to client
+  tds_deducted       // TDS Section 194J deduction
+  dispute_frozen     // Escrow frozen due to dispute
+  dispute_unfrozen   // Dispute resolved; escrow action followed
+  payout_initiated   // Admin initiated payout to lawyer
+  payout_completed   // Bank confirmed payout
+  payout_failed      // Payout attempt failed
+}
+
+enum PayoutStatus {
+  pending    // queued, not yet sent
+  processing // admin initiated transfer
+  completed  // bank confirmed
+  failed     // transfer failed
+}
+
 // ─── NextAuth models ─────────────────────────────────────────────────────────
 
 model Account {
@@ -135,6 +156,12 @@ model User {
   suspended        Boolean  @default(false)
   suspended_reason String?
   suspended_at     DateTime?
+
+  // Email verification
+  email_verified_at          DateTime?
+  email_verification_token   String?   @unique
+  email_verification_expires DateTime?
+
   created_at       DateTime @default(now())
   updated_at       DateTime @updatedAt
 
@@ -146,7 +173,6 @@ model User {
   client_cases     Case[]           @relation("ClientCases")
   lawyer_cases     Case[]           @relation("LawyerCases")
   lawyer_profile   LawyerProfile?
-  sent_messages    Message[]        @relation("SentMessages")
   notifications    Notification[]
   client_payments  Payment[]        @relation("ClientPayments")
   lawyer_payments  Payment[]        @relation("LawyerPayments")
@@ -160,9 +186,28 @@ model User {
   dispute_evidence    DisputeEvidence[]
   milestone_revisions MilestoneRevision[]
   admin_logs          AdminLog[]
+  admin_2fa           Admin2FA?
+  payout_bank_details PayoutBankDetails?
+  ledger_entries      PaymentLedger[]
+  payouts             Payout[]
 
   @@index([role])
   @@map("users")
+}
+
+// ─── Admin 2FA ────────────────────────────────────────────────────────────────
+
+model Admin2FA {
+  id              String    @id @default(cuid())
+  user_id         String    @unique
+  totp_secret     String    // base32 TOTP secret
+  backup_codes    Json      // array of SHA-256 hashed 8-char codes
+  enabled         Boolean   @default(false)
+  setup_completed_at DateTime?
+  last_verified_at   DateTime?
+  user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("admin_2fa")
 }
 
 // ─── Lawyer ──────────────────────────────────────────────────────────────────
@@ -185,6 +230,9 @@ model LawyerProfile {
   avg_rating          Float              @default(0)
   review_count        Int                @default(0)
   total_cases         Int                @default(0)
+  // Quality metrics
+  completion_rate     Float              @default(0) // completed / total_cases
+  dispute_rate        Float              @default(0) // disputed / total_cases
   created_at          DateTime           @default(now())
   updated_at          DateTime           @updatedAt
   user                User               @relation(fields: [id], references: [id], onDelete: Cascade)
@@ -194,7 +242,69 @@ model LawyerProfile {
   @@map("lawyer_profiles")
 }
 
-// ─── Enterprise (law firms — for future internship posting) ──────────────────
+// ─── Payout bank details (lawyer) ─────────────────────────────────────────────
+
+model PayoutBankDetails {
+  id                   String    @id @default(cuid())
+  lawyer_id            String    @unique
+  account_holder_name  String
+  bank_name            String
+  account_number       String    // stored plain; DB must have encryption at rest
+  ifsc_code            String
+  verified             Boolean   @default(false)
+  verified_by          String?   // admin user_id who verified
+  verified_at          DateTime?
+  created_at           DateTime  @default(now())
+  updated_at           DateTime  @updatedAt
+  user                 User      @relation(fields: [lawyer_id], references: [id], onDelete: Cascade)
+
+  @@map("payout_bank_details")
+}
+
+// ─── Payout ───────────────────────────────────────────────────────────────────
+
+model Payout {
+  id          String       @id @default(cuid())
+  lawyer_id   String
+  amount      Int          // in paise — amount after platform fee and TDS
+  utr         String?      // Unique Transaction Reference from bank
+  status      PayoutStatus @default(pending)
+  notes       String?      // admin notes
+  payment_ids Json         // array of Payment IDs included in this payout
+  initiated_by String?     // admin user_id
+  initiated_at DateTime?
+  completed_at DateTime?
+  failed_at   DateTime?
+  failure_reason String?
+  created_at  DateTime     @default(now())
+  updated_at  DateTime     @updatedAt
+  lawyer      User         @relation(fields: [lawyer_id], references: [id])
+
+  @@index([lawyer_id, status])
+  @@index([status, created_at(sort: Desc)])
+  @@map("payouts")
+}
+
+// ─── Payment Ledger (immutable audit trail) ───────────────────────────────────
+
+model PaymentLedger {
+  id          String           @id @default(cuid())
+  payment_id  String?          // may be null for system-level events
+  case_id     String
+  event_type  LedgerEventType
+  amount      Int              // amount involved in paise
+  actor_id    String?          // user who triggered this event (null = system)
+  description String
+  metadata    Json?            // extra context (e.g. utr, razorpay_id, tds_amount)
+  created_at  DateTime         @default(now())
+  actor       User?            @relation(fields: [actor_id], references: [id])
+
+  @@index([case_id, created_at(sort: Desc)])
+  @@index([payment_id])
+  @@map("payment_ledger")
+}
+
+// ─── Enterprise (law firms) ───────────────────────────────────────────────────
 
 model EnterpriseProfile {
   id                  String             @id
@@ -313,7 +423,6 @@ model Case {
   lawyer       User        @relation("LawyerCases", fields: [lawyer_id], references: [id])
   cancelled_by User?       @relation("CancelledCases", fields: [cancelled_by_id], references: [id])
   milestones   Milestone[]
-  messages     Message[]
   payments     Payment[]
   events       CaseEvent[]
   reviews      Review[]
@@ -383,7 +492,7 @@ model Payment {
   lawyer_final_amount Int           @default(0)
   status              PaymentStatus @default(pending)
   razorpay_order_id   String?
-  razorpay_payment_id String?
+  razorpay_payment_id String?       @unique // idempotency: prevent double-capture
   paid_at             DateTime?
   created_at          DateTime      @default(now())
 
@@ -396,6 +505,7 @@ model Payment {
   @@index([client_id])
   @@index([lawyer_id])
   @@index([status])
+  @@index([razorpay_order_id])
   @@map("payments")
 }
 
@@ -443,22 +553,8 @@ model Review {
   @@map("reviews")
 }
 
-// ─── Communication ────────────────────────────────────────────────────────────
-
-model Message {
-  id         String   @id @default(cuid())
-  case_id    String
-  sender_id  String
-  content    String
-  file_url   String?  // optional file attachment
-  file_name  String?  // display name for the attachment
-  created_at DateTime @default(now())
-  case       Case     @relation(fields: [case_id], references: [id])
-  sender     User     @relation("SentMessages", fields: [sender_id], references: [id])
-
-  @@index([case_id, created_at(sort: Asc)])
-  @@map("messages")
-}
+// ─── Case Timeline Events ─────────────────────────────────────────────────────
+// Replaces free-form chat as the source of truth for case history
 
 model CaseEvent {
   id          String   @id @default(cuid())

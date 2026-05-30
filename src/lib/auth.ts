@@ -76,10 +76,19 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.role = (user as { id: string; role: UserRole }).role;
+
+        // For admins: check 2FA status from DB once at sign-in
+        if (token.role === 'admin') {
+          const twofa = await prisma.admin2FA.findUnique({
+            where: { user_id: token.id as string },
+            select: { enabled: true, setup_completed_at: true },
+          });
+          token.twoFactorVerified = false;
+          token.adminTwoFactorSetupDone = !!(twofa?.enabled && twofa.setup_completed_at);
+        }
       }
 
-      // On explicit session update (trigger === 'update'): re-fetch role from DB
-      // to pick up any role changes made since last login
+      // On explicit session update: re-fetch role and admin 2FA status from DB
       if (trigger === 'update' && token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -87,6 +96,18 @@ export const authOptions: NextAuthOptions = {
         });
         if (dbUser) {
           token.role = dbUser.role as UserRole;
+        }
+
+        if (token.role === 'admin') {
+          const twofa = await prisma.admin2FA.findUnique({
+            where: { user_id: token.id as string },
+            select: { enabled: true, setup_completed_at: true, last_verified_at: true },
+          });
+          token.adminTwoFactorSetupDone = !!(twofa?.enabled && twofa.setup_completed_at);
+          if (twofa?.last_verified_at) {
+            const ageMs = Date.now() - new Date(twofa.last_verified_at).getTime();
+            token.twoFactorVerified = ageMs < 4 * 60 * 60 * 1000; // valid within 4h session
+          }
         }
       }
 
@@ -96,6 +117,10 @@ export const authOptions: NextAuthOptions = {
       if (token) {
         session.user.id = token.id as string;
         session.user.role = token.role as UserRole;
+        if (token.role === 'admin') {
+          session.user.twoFactorVerified = token.twoFactorVerified ?? false;
+          session.user.adminTwoFactorSetupDone = token.adminTwoFactorSetupDone ?? false;
+        }
       }
       return session;
     },

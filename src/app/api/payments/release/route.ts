@@ -14,6 +14,7 @@ import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { notify } from '@/lib/notifications';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
+import { writeLedger } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 // TDS Section 194J: 10% on professional fees >= ₹30,000
@@ -100,6 +101,27 @@ export async function POST(req: NextRequest) {
         description: `${formatCurrency(payment.amount)} released to advocate.${tds_applicable ? ` TDS of ${formatCurrency(tds_amount)} deducted.` : ''}`,
       },
     });
+
+    // 4. Ledger entries
+    await writeLedger({
+      caseId:      payment.case_id,
+      eventType:   'payment_released',
+      amount:      lawyer_final_amount,
+      description: `${formatCurrency(lawyer_final_amount)} released to advocate for milestone ${payment.milestone_number}`,
+      paymentId:   paymentId,
+      actorId:     session.user.id,
+    }, tx);
+
+    if (tds_applicable) {
+      await writeLedger({
+        caseId:      payment.case_id,
+        eventType:   'tds_deducted',
+        amount:      tds_amount,
+        description: `TDS (Sec. 194J, 10%) of ${formatCurrency(tds_amount)} deducted from milestone ${payment.milestone_number} payment`,
+        paymentId:   paymentId,
+        actorId:     session.user.id,
+      }, tx);
+    }
   });
 
   // Notify lawyer — with email (payment received is critical)

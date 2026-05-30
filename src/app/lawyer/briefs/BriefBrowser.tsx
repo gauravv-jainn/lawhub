@@ -9,7 +9,7 @@ import LegalSectionsCard from '@/components/shared/LegalSectionsCard';
 import type { Brief } from '@/types';
 
 interface Props {
-  briefs: (Brief & { client_name?: string | null })[];
+  briefs: (Brief & { client_name?: string | null; bid_count?: number })[];
   biddedBriefIds: Set<string>;
   lawyerId: string;
   lawyerName: string;
@@ -38,7 +38,7 @@ export default function BriefBrowser({ briefs, biddedBriefIds, lawyerId, lawyerN
       return true;
     })
     .sort((a, b) => {
-      if (sort === 'fewest_bids') return a.bid_count - b.bid_count;
+      if (sort === 'fewest_bids') return (a.bid_count ?? 0) - (b.bid_count ?? 0);
       if (sort === 'budget_high') return b.budget_max - a.budget_max;
       if (sort === 'urgent') {
         const urgencyOrder = { emergency: 0, urgent: 1, standard: 2 };

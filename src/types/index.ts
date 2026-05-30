@@ -91,7 +91,6 @@ export interface Proposal {
   milestone_count: number;
   strategy_text: string;
   cover_letter: string;
-  cover_note: string | null;
   relevant_experience: string | null;
   availability: string | null;
   estimated_timeline: string | null;
@@ -188,19 +187,6 @@ export interface CaseEvent {
   event_type: string;
   title: string;
   description: string | null;
-  created_at: string;
-}
-
-// ─── Message ───────────────────────────────────────────────────────────────────
-
-export interface Message {
-  id: string;
-  case_id: string;
-  sender_id: string;
-  content: string;
-  file_url: string | null;
-  file_name: string | null;
-  read_at: string | null;
   created_at: string;
 }
 

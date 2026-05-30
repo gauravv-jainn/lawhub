@@ -8,6 +8,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import { notify } from '@/lib/notifications';
+import { recalculateLawyerMetrics } from '@/lib/metrics';
 export const dynamic = 'force-dynamic';
 
 const COMPLETION_WINDOW_HOURS = 72; // client has 72h to approve/dispute before auto-complete
@@ -218,6 +219,8 @@ export async function PATCH(
       link: `/lawyer/cases/${params.id}`,
       sendEmail: true,
     });
+
+    void recalculateLawyerMetrics(caseRow.lawyer_id);
 
     return NextResponse.json({ ok: true });
   }

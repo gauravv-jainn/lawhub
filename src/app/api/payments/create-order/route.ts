@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
+import { writeLedger } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
@@ -138,6 +139,16 @@ export async function POST(req: NextRequest) {
       razorpay_order_id: order.id,
       status:            'pending',
     },
+  });
+
+  await writeLedger({
+    caseId:      caseId,
+    eventType:   'order_created',
+    amount:      amount,
+    description: `Razorpay order created for milestone ${milestoneNumber}`,
+    paymentId:   payment.id,
+    actorId:     session.user.id,
+    metadata:    { razorpay_order_id: order.id, milestone_id: milestone.id },
   });
 
   return NextResponse.json({

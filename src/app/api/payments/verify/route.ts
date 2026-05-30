@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import crypto from 'crypto';
+import { writeLedger } from '@/lib/ledger';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
@@ -65,6 +66,27 @@ export async function POST(req: NextRequest) {
       where: { id: paymentId },
       data: { status: 'held', razorpay_payment_id: razorpayPaymentId, paid_at: new Date() },
     });
+
+    // Write ledger entries
+    await Promise.all([
+      writeLedger({
+        caseId:      existingPayment.case_id,
+        eventType:   'payment_captured',
+        amount:      existingPayment.amount,
+        description: `Razorpay payment captured for milestone ${existingPayment.milestone_number}`,
+        paymentId:   paymentId,
+        actorId:     session.user.id,
+        metadata:    { razorpay_payment_id: razorpayPaymentId, razorpay_order_id: razorpayOrderId },
+      }),
+      writeLedger({
+        caseId:      existingPayment.case_id,
+        eventType:   'escrow_held',
+        amount:      existingPayment.amount,
+        description: `₹${existingPayment.amount / 100} held in escrow for milestone ${existingPayment.milestone_number}`,
+        paymentId:   paymentId,
+        actorId:     session.user.id,
+      }),
+    ]);
 
     // Create case event and notify lawyer in parallel
     await Promise.all([

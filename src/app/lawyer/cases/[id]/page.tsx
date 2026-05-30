@@ -5,16 +5,33 @@ import { redirect, notFound } from 'next/navigation';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { formatCurrency } from '@/lib/utils/formatCurrency';
 import { formatDate, formatRelativeTime } from '@/lib/utils/formatDate';
-import MessageThread from '@/app/client/cases/[id]/MessageThread';
 import MilestonePanel from '@/app/client/cases/[id]/MilestonePanel';
 import CaseManagePanel from './CaseManagePanel';
+
+const EVENT_ICONS: Record<string, string> = {
+  case_created:            '🟢',
+  case_completed:          '✅',
+  case_auto_completed:     '✅',
+  case_cancelled:          '❌',
+  completion_requested:    '🔔',
+  hearing_set:             '📅',
+  milestone_paid:          '💰',
+  payment_released:        '💸',
+  dispute_resolved:        '⚖️',
+  milestone_plan_submitted:'📋',
+  milestone_plan_approved: '✅',
+  milestone_plan_rejected: '❌',
+  milestone_submitted:     '📤',
+  milestone_approved:      '✔️',
+  manual_note:             '📝',
+};
 
 export default async function LawyerCaseDetailPage({ params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const [caseData, events, messages] = await Promise.all([
+  const [caseData, events] = await Promise.all([
     prisma.case.findFirst({
       where: { id: params.id, lawyer_id: userId },
       include: {
@@ -34,35 +51,28 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
     prisma.caseEvent.findMany({
       where: { case_id: params.id },
       orderBy: { created_at: 'asc' },
-    }),
-    prisma.message.findMany({
-      where: { case_id: params.id },
-      orderBy: { created_at: 'asc' },
-      include: { sender: { select: { id: true, full_name: true, role: true } } },
+      include: { actor: { select: { full_name: true, role: true } } },
     }),
   ]);
 
   if (!caseData) notFound();
-  const c = caseData as typeof caseData & {
-    milestones: NonNullable<typeof caseData>['milestones'];
-  };
+  const c = caseData;
 
   const clientName     = c.client?.full_name ?? 'Unknown';
   const clientInitials = clientName.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
+  const tdsThreshold   = 3_000_000;
 
   const totalReleased = c.payments.filter((p) => p.status === 'released').reduce((s, p) => s + p.amount, 0);
   const totalHeld     = c.payments.filter((p) => p.status === 'held').reduce((s, p) => s + p.amount, 0);
-
-  // TDS estimate for display (server-safe)
-  const tdsThreshold = 3_000_000;
-  const netEarnings  = c.payments
+  const netEarnings   = c.payments
     .filter((p) => p.status === 'released')
     .reduce((s, p) => {
       const tds = p.amount >= tdsThreshold ? Math.round(p.amount * 0.1) : 0;
       return s + p.amount - tds;
     }, 0);
 
-  const allMilestonesComplete = c.milestones.length > 0 &&
+  const allMilestonesComplete =
+    c.milestones.length > 0 &&
     c.milestones.every((m) => ['approved', 'paid', 'cancelled'].includes(m.status));
 
   return (
@@ -98,12 +108,7 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
         >
           {c.title}
         </h1>
-        <div
-          style={{
-            display: 'flex', gap: '20px', fontSize: '13px',
-            color: 'rgba(14,12,10,0.45)', flexWrap: 'wrap',
-          }}
-        >
+        <div style={{ display: 'flex', gap: '20px', fontSize: '13px', color: 'rgba(14,12,10,0.45)', flexWrap: 'wrap' }}>
           <span>⚖️ {c.brief?.court}</span>
           <span>👤 Client: {clientName}</span>
           <span>📅 Started {formatDate(c.created_at.toISOString())}</span>
@@ -127,8 +132,7 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
             Completion request sent
           </div>
           <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.55)', marginTop: '4px' }}>
-            You have requested case completion. The client has 72 hours to approve or raise a dispute.
-            If no action is taken, the case will close automatically.
+            Your client has 72 hours to approve or raise a dispute. If no action is taken, the case closes automatically.
           </div>
         </div>
       )}
@@ -145,7 +149,10 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
             Dispute in progress — payments are frozen
           </div>
           <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.55)', marginTop: '4px' }}>
-            Status: <strong style={{ textTransform: 'capitalize' }}>{c.dispute.status.replace(/_/g, ' ')}</strong>
+            Status:{' '}
+            <strong style={{ textTransform: 'capitalize' }}>
+              {c.dispute.status.replace(/_/g, ' ')}
+            </strong>
             {c.dispute.resolution && ` · ${c.dispute.resolution}`}
           </div>
         </div>
@@ -176,12 +183,18 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
             <h2
               style={{
                 fontFamily: "'Cormorant Garamond', serif", fontSize: '18px',
-                fontWeight: 600, color: 'var(--ink)', marginBottom: '20px',
+                fontWeight: 600, color: 'var(--ink)', marginBottom: '4px',
               }}
             >
               Case Timeline
             </h2>
+            <p style={{ fontSize: '12px', color: 'rgba(14,12,10,0.4)', marginBottom: '20px' }}>
+              All case activity is recorded here. Contact your client directly for communications.
+            </p>
             <div style={{ position: 'relative' }}>
+              {events.length === 0 && (
+                <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.4)' }}>No events yet.</p>
+              )}
               {events.map((event, i) => (
                 <div
                   key={event.id}
@@ -204,15 +217,20 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
                       width: '24px', height: '24px', borderRadius: '50%',
                       background: 'var(--cream)', border: '2px solid rgba(14,12,10,0.12)',
                       flexShrink: 0, display: 'flex', alignItems: 'center',
-                      justifyContent: 'center', fontSize: '10px',
+                      justifyContent: 'center', fontSize: '11px',
                     }}
                   >
-                    ·
+                    {EVENT_ICONS[event.event_type] ?? '·'}
                   </div>
                   <div>
                     <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--ink)', marginBottom: '2px' }}>
                       {event.title}
                     </div>
+                    {event.actor && (
+                      <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginBottom: '2px', textTransform: 'capitalize' }}>
+                        by {event.actor.full_name} ({event.actor.role})
+                      </div>
+                    )}
                     {event.description && (
                       <div style={{ fontSize: '12px', color: 'rgba(14,12,10,0.5)', marginBottom: '4px' }}>
                         {event.description}
@@ -224,33 +242,7 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
                   </div>
                 </div>
               ))}
-              {events.length === 0 && (
-                <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.4)' }}>No events yet.</p>
-              )}
             </div>
-          </div>
-
-          {/* Messages */}
-          <div
-            style={{
-              background: 'white', border: '1px solid rgba(14,12,10,0.08)',
-              borderRadius: '12px', padding: '24px',
-            }}
-          >
-            <h2
-              style={{
-                fontFamily: "'Cormorant Garamond', serif", fontSize: '18px',
-                fontWeight: 600, color: 'var(--ink)', marginBottom: '20px',
-              }}
-            >
-              Messages with Client
-            </h2>
-            <MessageThread
-              caseId={params.id}
-              userId={userId}
-              userRole="lawyer"
-              initialMessages={messages as any}
-            />
           </div>
         </div>
 
@@ -263,20 +255,14 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
               borderRadius: '12px', padding: '20px',
             }}
           >
-            <div
-              style={{
-                fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginBottom: '14px',
-                textTransform: 'uppercase', letterSpacing: '0.06em',
-              }}
-            >
+            <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Client
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div
                 style={{
-                  width: '38px', height: '38px', borderRadius: '50%',
-                  background: 'var(--gold)', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '38px', height: '38px', borderRadius: '50%', background: 'var(--gold)',
+                  color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '13px', fontWeight: 700,
                 }}
               >

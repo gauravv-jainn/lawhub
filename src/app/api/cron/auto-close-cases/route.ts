@@ -17,6 +17,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { notify } from '@/lib/notifications';
+import { recalculateLawyerMetrics } from '@/lib/metrics';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -100,6 +101,7 @@ export async function GET(req: NextRequest) {
         }),
       ]);
 
+      void recalculateLawyerMetrics(c.lawyer_id);
       results.push({ caseId: c.id, status: 'completed' });
     } catch (err) {
       console.error(`[cron/auto-close] Failed to close case ${c.id}:`, err);

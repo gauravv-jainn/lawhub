@@ -15,6 +15,8 @@ import prisma from '@/lib/prisma';
 import { cancellationSchema } from '@/lib/utils/validators';
 import { notify } from '@/lib/notifications';
 import { issueRazorpayRefund } from '@/lib/razorpay';
+import { writeLedger } from '@/lib/ledger';
+import { recalculateLawyerMetrics } from '@/lib/metrics';
 export const dynamic = 'force-dynamic';
 
 export async function POST(
@@ -122,6 +124,19 @@ export async function POST(
     });
   });
 
+  // Write ledger entries for refunded payments (outside transaction — ledger is non-blocking)
+  for (const pmt of heldPayments) {
+    await writeLedger({
+      caseId:      params.id,
+      eventType:   'payment_refunded',
+      amount:      pmt.amount,
+      description: `Refund issued on case cancellation`,
+      paymentId:   pmt.id,
+      actorId:     session.user.id,
+      metadata:    { razorpay_payment_id: pmt.razorpay_payment_id, reason: parsed.data.reason },
+    });
+  }
+
   // Notify the other party
   const otherPartyId    = isClient ? caseRow.lawyer_id : caseRow.client_id;
   const cancelledByRole = isClient ? 'client' : 'advocate';
@@ -169,6 +184,8 @@ export async function POST(
       });
     }
   }
+
+  void recalculateLawyerMetrics(caseRow.lawyer_id);
 
   return NextResponse.json({ ok: true });
 }

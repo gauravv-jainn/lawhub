@@ -28,11 +28,7 @@ export async function GET(
       lawyer: { select: { id: true, full_name: true, email: true } },
       milestones: { orderBy: { number: 'asc' }, include: { payment: true, attachments: true } },
       payments:   { orderBy: { milestone_number: 'asc' } },
-      events:     { orderBy: { created_at: 'asc' } },
-      messages: {
-        orderBy: { created_at: 'asc' },
-        include: { sender: { select: { full_name: true, role: true } } },
-      },
+      events:     { orderBy: { created_at: 'asc' }, include: { actor: { select: { full_name: true, role: true } } } },
       dispute: true,
     },
   });

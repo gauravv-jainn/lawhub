@@ -166,7 +166,7 @@ export async function DELETE(
   const attachment = await prisma.milestoneAttachment.findFirst({
     where: {
       id: attachmentId,
-      milestone: { case_id_number: { case_id: params.id, number: milestoneNumber } },
+      milestone: { case_id: params.id, number: milestoneNumber },
     },
   });
   if (!attachment) return NextResponse.json({ error: 'Attachment not found.' }, { status: 404 });

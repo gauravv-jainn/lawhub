@@ -4,7 +4,7 @@ import prisma from '@/lib/prisma';
 import { redirect, notFound } from 'next/navigation';
 import StatusBadge from '@/components/shared/StatusBadge';
 import { formatRange } from '@/lib/utils/formatCurrency';
-import { formatDate, formatRelativeTime, formatTimeLeft } from '@/lib/utils/formatDate';
+import { formatDate, formatRelativeTime } from '@/lib/utils/formatDate';
 import ProposalCard from './ProposalCard';
 import LegalSectionsCard from '@/components/shared/LegalSectionsCard';
 
@@ -105,11 +105,6 @@ export default async function BriefDetailPage({ params }: { params: { id: string
           {expiresAt && brief.status === 'open' && (
             <span style={{ color: 'var(--rust)' }}>
               ⏰ Expires {formatDate(expiresAt.toISOString())}
-            </span>
-          )}
-          {brief.closes_at && (
-            <span style={{ color: brief.status === 'open' ? 'var(--rust)' : 'inherit' }}>
-              ⏰ {formatTimeLeft(brief.closes_at.toISOString())}
             </span>
           )}
         </div>

@@ -14,6 +14,8 @@ import prisma from '@/lib/prisma';
 import { disputeResolveSchema } from '@/lib/utils/validators';
 import { notify } from '@/lib/notifications';
 import { issueRazorpayRefund } from '@/lib/razorpay';
+import { writeLedger } from '@/lib/ledger';
+import { recalculateLawyerMetrics } from '@/lib/metrics';
 export const dynamic = 'force-dynamic';
 
 // ─── GET ─────────────────────────────────────────────────────────────────────
@@ -36,10 +38,9 @@ export async function GET(
           lawyer: { select: { id: true, full_name: true, email: true } },
           milestones: { orderBy: { number: 'asc' } },
           payments: { orderBy: { milestone_number: 'asc' } },
-          events: { orderBy: { created_at: 'asc' } },
-          messages: {
+          events: {
             orderBy: { created_at: 'asc' },
-            include: { sender: { select: { full_name: true, role: true } } },
+            include: { actor: { select: { full_name: true, role: true } } },
           },
         },
       },
@@ -257,6 +258,54 @@ export async function PATCH(
           description: `Resolution: ${resolution}${resolution === 'partial_refund' ? ` (${refundPct}% refund)` : ''}. ${resolution_note}`,
         },
       });
+
+      // 5. Ledger entries per resolution type
+      await writeLedger({
+        caseId:      dispute.case_id,
+        eventType:   'dispute_unfrozen',
+        amount:      heldPayments.reduce((s, p) => s + p.amount, 0),
+        description: `Dispute resolved by admin: ${resolution}`,
+        actorId:     session.user.id,
+        metadata:    { resolution, refundPct: resolution === 'partial_refund' ? refundPct : null },
+      }, tx);
+
+      for (const pmt of heldPayments) {
+        if (resolution === 'resolved_client' || resolution === 'partial_refund') {
+          const refundAmount = resolution === 'partial_refund'
+            ? Math.round(pmt.amount * (refundPct / 100))
+            : pmt.amount;
+          await writeLedger({
+            caseId:      dispute.case_id,
+            eventType:   'payment_refunded',
+            amount:      refundAmount,
+            description: `Refund to client: dispute resolved (${resolution})`,
+            paymentId:   pmt.id,
+            actorId:     session.user.id,
+          }, tx);
+        }
+        if (resolution === 'resolved_lawyer' || resolution === 'settled') {
+          const tds = pmt.amount >= 3_000_000 ? Math.round(pmt.amount * 0.10) : 0;
+          const lawyerAmount = pmt.amount - tds;
+          await writeLedger({
+            caseId:      dispute.case_id,
+            eventType:   'payment_released',
+            amount:      lawyerAmount,
+            description: `Release to lawyer: dispute resolved (${resolution})`,
+            paymentId:   pmt.id,
+            actorId:     session.user.id,
+          }, tx);
+          if (tds > 0) {
+            await writeLedger({
+              caseId:      dispute.case_id,
+              eventType:   'tds_deducted',
+              amount:      tds,
+              description: `TDS (Sec. 194J, 10%) deducted on dispute resolution`,
+              paymentId:   pmt.id,
+              actorId:     session.user.id,
+            }, tx);
+          }
+        }
+      }
     });
 
     // Admin log
@@ -270,6 +319,9 @@ export async function PATCH(
         metadata:    { resolution, refundPct: resolution === 'partial_refund' ? refundPct : null },
       },
     });
+
+    // Recalculate lawyer metrics after dispute resolution
+    void recalculateLawyerMetrics(dispute.case.lawyer_id);
 
     // Notify both parties
     const resolutionLabels: Record<string, string> = {

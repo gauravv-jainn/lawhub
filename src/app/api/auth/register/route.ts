@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import prisma from '@/lib/prisma';
 import { authRateLimit } from '@/lib/ratelimit';
+import { sendVerificationEmail } from '@/lib/resend';
 import {
   clientRegisterSchema,
   lawyerStep1Schema,
@@ -9,6 +11,27 @@ import {
   lawyerStep3Schema,
 } from '@/lib/utils/validators';
 import { z } from 'zod';
+
+function makeVerificationToken(): { token: string; expires: Date } {
+  return {
+    token:   crypto.randomBytes(32).toString('hex'),
+    expires: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
+  };
+}
+
+async function dispatchVerificationEmail(
+  email: string,
+  name: string,
+  token: string
+): Promise<void> {
+  const url = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify-email?token=${token}`;
+  try {
+    await sendVerificationEmail(email, name, url);
+  } catch (err) {
+    // Email failure must never block registration — user can resend
+    console.error('[register] Verification email failed:', err);
+  }
+}
 
 // Composite schema for lawyer registration (all three steps merged into one POST)
 const lawyerRegisterSchema = lawyerStep1Schema.merge(lawyerStep2Schema).merge(lawyerStep3Schema).extend({
@@ -72,6 +95,7 @@ export async function POST(req: NextRequest) {
       }
       const d = parsed.data;
       const hashedPassword = await bcrypt.hash(d.password, 12);
+      const { token, expires } = makeVerificationToken();
       const user = await prisma.user.create({
         data: {
           email: d.email,
@@ -81,8 +105,11 @@ export async function POST(req: NextRequest) {
           city: d.city,
           state: d.state,
           role: 'client',
+          email_verification_token:   token,
+          email_verification_expires: expires,
         },
       });
+      await dispatchVerificationEmail(d.email, d.full_name, token);
       return NextResponse.json({ userId: user.id });
     }
 
@@ -94,6 +121,7 @@ export async function POST(req: NextRequest) {
       }
       const d = parsed.data;
       const hashedPassword = await bcrypt.hash(d.password, 12);
+      const { token: lToken, expires: lExpires } = makeVerificationToken();
       const user = await prisma.user.create({
         data: {
           email: d.email,
@@ -101,6 +129,8 @@ export async function POST(req: NextRequest) {
           full_name: d.full_name,
           phone: d.phone,
           role: 'lawyer',
+          email_verification_token:   lToken,
+          email_verification_expires: lExpires,
           lawyer_profile: {
             create: {
               bci_number: d.bci_number,
@@ -118,6 +148,7 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+      await dispatchVerificationEmail(d.email, d.full_name, lToken);
       return NextResponse.json({ userId: user.id });
     }
 
@@ -129,6 +160,7 @@ export async function POST(req: NextRequest) {
       }
       const d = parsed.data;
       const hashedPassword = await bcrypt.hash(d.password, 12);
+      const { token: eToken, expires: eExpires } = makeVerificationToken();
       const user = await prisma.user.create({
         data: {
           email: d.email,
@@ -138,6 +170,8 @@ export async function POST(req: NextRequest) {
           city: d.city ?? null,
           state: d.state ?? null,
           role: 'enterprise',
+          email_verification_token:   eToken,
+          email_verification_expires: eExpires,
           enterprise_profile: {
             create: {
               firm_name: d.firm_name,
@@ -152,6 +186,7 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+      await dispatchVerificationEmail(d.email, d.contact_name, eToken);
       return NextResponse.json({ userId: user.id });
     }
 
@@ -163,6 +198,7 @@ export async function POST(req: NextRequest) {
       }
       const d = parsed.data;
       const hashedPassword = await bcrypt.hash(d.password, 12);
+      const { token: nToken, expires: nExpires } = makeVerificationToken();
       const user = await prisma.user.create({
         data: {
           email: d.email,
@@ -172,6 +208,8 @@ export async function POST(req: NextRequest) {
           city: d.city ?? null,
           state: d.state ?? null,
           role: 'ngo',
+          email_verification_token:   nToken,
+          email_verification_expires: nExpires,
           ngo_profile: {
             create: {
               org_name: d.org_name,
@@ -186,6 +224,7 @@ export async function POST(req: NextRequest) {
           },
         },
       });
+      await dispatchVerificationEmail(d.email, d.contact_name, nToken);
       return NextResponse.json({ userId: user.id });
     }
 

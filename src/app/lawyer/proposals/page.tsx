@@ -132,7 +132,7 @@ export default async function LawyerProposalsPage() {
                               <span>{brief?._count?.proposals ?? 0} proposals total</span>
                               <span>Submitted {formatDate(proposal.created_at.toISOString())}</span>
                             </div>
-                            {proposal.cover_note && (
+                            {proposal.cover_letter && (
                               <p
                                 style={{
                                   fontSize: '13px', color: 'rgba(14,12,10,0.55)',
@@ -143,7 +143,7 @@ export default async function LawyerProposalsPage() {
                                   overflow: 'hidden',
                                 }}
                               >
-                                {proposal.cover_note}
+                                {proposal.cover_letter}
                               </p>
                             )}
                           </div>

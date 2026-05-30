@@ -23,12 +23,10 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
             include: { payment: true },
           },
           payments: { orderBy: { milestone_number: 'asc' } },
-          messages: {
+          events: {
             orderBy: { created_at: 'asc' },
-            include: { sender: { select: { full_name: true, role: true } } },
-            take: 50,
+            include: { actor: { select: { full_name: true, role: true } } },
           },
-          events: { orderBy: { created_at: 'asc' } },
         },
       },
       raised_by: { select: { full_name: true, role: true } },
@@ -236,54 +234,6 @@ export default async function AdminDisputeDetailPage({ params }: { params: { id:
                     <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)', whiteSpace: 'nowrap' }}>
                       {formatCurrency(ms.amount)}
                     </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Case messages */}
-          <div
-            style={{
-              background: 'white', border: '1px solid rgba(14,12,10,0.08)',
-              borderRadius: '12px', padding: '20px',
-            }}
-          >
-            <h3
-              style={{
-                fontFamily: "'Cormorant Garamond', serif",
-                fontSize: '16px', fontWeight: 600, color: 'var(--ink)', marginBottom: '16px',
-              }}
-            >
-              Message Thread (last 50)
-            </h3>
-            {c.messages.length === 0 ? (
-              <p style={{ fontSize: '13px', color: 'rgba(14,12,10,0.4)' }}>No messages.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '400px', overflowY: 'auto' }}>
-                {c.messages.map((msg) => (
-                  <div key={msg.id} style={{ display: 'flex', gap: '10px' }}>
-                    <div
-                      style={{
-                        width: '28px', height: '28px', borderRadius: '50%',
-                        background: msg.sender.role === 'lawyer' ? 'var(--teal)' : 'var(--gold)',
-                        color: 'white', display: 'flex', alignItems: 'center',
-                        justifyContent: 'center', fontSize: '10px', fontWeight: 700,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {msg.sender.full_name[0]}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '11px', color: 'rgba(14,12,10,0.45)', marginBottom: '3px' }}>
-                        <strong>{msg.sender.full_name}</strong>{' '}
-                        <span style={{ textTransform: 'capitalize' }}>({msg.sender.role})</span>{' '}
-                        · {formatRelativeTime(msg.created_at.toISOString())}
-                      </div>
-                      <p style={{ fontSize: '13px', color: 'var(--ink)', margin: 0, lineHeight: 1.5 }}>
-                        {msg.content}
-                      </p>
-                    </div>
                   </div>
                 ))}
               </div>

@@ -68,6 +68,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Only clients and NGOs may post briefs.' }, { status: 403 });
   }
 
+  const userRecord = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email_verified_at: true },
+  });
+  if (!userRecord?.email_verified_at) {
+    return NextResponse.json(
+      { error: 'Please verify your email address before posting a brief.' },
+      { status: 403 }
+    );
+  }
+
   const body   = await req.json();
   const parsed = createBriefSchema.safeParse(body);
   if (!parsed.success) {
