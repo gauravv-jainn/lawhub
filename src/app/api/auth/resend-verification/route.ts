@@ -45,9 +45,16 @@ export async function POST(req: NextRequest) {
 
   try {
     await sendVerificationEmail(user.email, user.full_name, verificationUrl);
-  } catch (err) {
-    console.error('[resend-verification] Email send failed:', err);
-    return NextResponse.json({ error: 'Failed to send verification email. Please try again.' }, { status: 500 });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[resend-verification] Email send failed:', message);
+
+    // Surface the real reason in development so it's easy to diagnose
+    const detail = process.env.NODE_ENV !== 'production' ? ` (${message})` : '';
+    return NextResponse.json(
+      { error: `Failed to send verification email. Please try again.${detail}` },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ ok: true });

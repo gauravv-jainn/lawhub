@@ -24,12 +24,17 @@ async function dispatchVerificationEmail(
   name: string,
   token: string
 ): Promise<void> {
-  const url = `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/verify-email?token=${token}`;
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!baseUrl) {
+    console.error('[register] NEXT_PUBLIC_APP_URL is not set — verification link will be broken');
+  }
+  const url = `${baseUrl ?? ''}/api/auth/verify-email?token=${token}`;
   try {
     await sendVerificationEmail(email, name, url);
-  } catch (err) {
+  } catch (err: unknown) {
     // Email failure must never block registration — user can resend
-    console.error('[register] Verification email failed:', err);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('[register] Verification email failed:', message);
   }
 }
 

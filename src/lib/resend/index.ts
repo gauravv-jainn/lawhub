@@ -5,16 +5,45 @@ import { PaymentReceiptEmail } from './emails/PaymentReceiptEmail';
 import { CaseUpdateEmail } from './emails/CaseUpdateEmail';
 import VerificationEmail from './emails/VerificationEmail';
 
-const FROM = 'LawHub <noreply@lawhub.in>';
+// Read from env so you can override per-environment without a code change.
+// In development / before domain verification, set RESEND_FROM_EMAIL to
+// "onboarding@resend.dev" in your .env.local to bypass domain verification.
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'LawHub <noreply@lawhub.in>';
 
 let _resend: Resend | null = null;
 function getResend(): Resend {
   if (!_resend) {
     const key = process.env.RESEND_API_KEY;
-    if (!key) throw new Error('RESEND_API_KEY environment variable is not set');
+    if (!key) throw new Error('RESEND_API_KEY is not set. Add it to .env.local or your deployment environment variables.');
     _resend = new Resend(key);
   }
   return _resend;
+}
+
+/**
+ * In development with no RESEND_API_KEY, log emails to the terminal so you
+ * can click the verification link without configuring Resend locally.
+ * Returns true if the email was handled via console fallback (skip real send).
+ */
+function devConsoleFallback(subject: string, to: string, body: string): boolean {
+  if (process.env.NODE_ENV === 'production') return false;
+  if (process.env.RESEND_API_KEY) return false; // real key present — use Resend
+
+  console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('📧  DEV EMAIL (RESEND_API_KEY not set -- logging to console)');
+  console.log('To:      ' + to);
+  console.log('Subject: ' + subject);
+  console.log(body);
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+  return true;
+}
+
+/** Wrapper that throws on Resend API errors (Resend returns {error} instead of throwing). */
+async function send(payload: Parameters<Resend['emails']['send']>[0]): Promise<void> {
+  const result = await getResend().emails.send(payload);
+  if (result.error) {
+    throw new Error(`Resend API error: ${result.error.message ?? JSON.stringify(result.error)}`);
+  }
 }
 
 export async function sendWelcomeEmail(
@@ -22,16 +51,12 @@ export async function sendWelcomeEmail(
   name: string,
   role: 'client' | 'lawyer'
 ): Promise<void> {
+  const subject = role === 'lawyer'
+    ? 'Welcome to LawHub — Your advocate profile is pending verification'
+    : 'Welcome to LawHub — Post your first brief';
   const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL}/auth/login`;
-  await getResend().emails.send({
-    from: FROM,
-    to,
-    subject:
-      role === 'lawyer'
-        ? 'Welcome to LawHub — Your advocate profile is pending verification'
-        : 'Welcome to LawHub — Post your first brief',
-    react: WelcomeEmail({ name, role, loginUrl }),
-  });
+  if (devConsoleFallback(subject, to, `Login: ${loginUrl}`)) return;
+  await send({ from: FROM, to, subject, react: WelcomeEmail({ name, role, loginUrl }) });
 }
 
 export async function sendNewProposalEmail(
@@ -42,13 +67,10 @@ export async function sendNewProposalEmail(
   proposedFee: number,
   briefId: string
 ): Promise<void> {
+  const subject = `New proposal for "${briefTitle}" from Adv. ${lawyerName}`;
   const briefUrl = `${process.env.NEXT_PUBLIC_APP_URL}/client/briefs/${briefId}`;
-  await getResend().emails.send({
-    from: FROM,
-    to,
-    subject: `New proposal for "${briefTitle}" from Adv. ${lawyerName}`,
-    react: NewProposalEmail({ clientName, lawyerName, briefTitle, proposedFee, briefUrl }),
-  });
+  if (devConsoleFallback(subject, to, `Brief: ${briefUrl}`)) return;
+  await send({ from: FROM, to, subject, react: NewProposalEmail({ clientName, lawyerName, briefTitle, proposedFee, briefUrl }) });
 }
 
 export async function sendPaymentReceiptEmail(
@@ -65,12 +87,9 @@ export async function sendPaymentReceiptEmail(
     isLawyer?: boolean;
   }
 ): Promise<void> {
-  await getResend().emails.send({
-    from: FROM,
-    to,
-    subject: `Payment ${params.isLawyer ? 'received' : 'confirmed'} — ₹${(params.amount / 100).toLocaleString('en-IN')} for ${params.caseTitle}`,
-    react: PaymentReceiptEmail(params),
-  });
+  const subject = `Payment ${params.isLawyer ? 'received' : 'confirmed'} — Rs.${(params.amount / 100).toLocaleString('en-IN')} for ${params.caseTitle}`;
+  if (devConsoleFallback(subject, to, `Case: ${params.caseTitle}`)) return;
+  await send({ from: FROM, to, subject, react: PaymentReceiptEmail(params) });
 }
 
 export async function sendVerificationEmail(
@@ -78,10 +97,12 @@ export async function sendVerificationEmail(
   recipientName: string,
   verificationUrl: string
 ): Promise<void> {
-  await getResend().emails.send({
+  const subject = 'Verify your LawHub email address';
+  if (devConsoleFallback(subject, to, `Verification link: ${verificationUrl}`)) return;
+  await send({
     from: FROM,
     to,
-    subject: 'Verify your LawHub email address',
+    subject,
     react: VerificationEmail({ recipientName, verificationUrl, expiryHours: 24 }),
   });
 }
@@ -96,10 +117,6 @@ export async function sendCaseUpdateEmail(
     ctaLabel?: string;
   }
 ): Promise<void> {
-  await getResend().emails.send({
-    from: FROM,
-    to,
-    subject: params.subject,
-    react: CaseUpdateEmail(params),
-  });
+  if (devConsoleFallback(params.subject, to, params.body)) return;
+  await send({ from: FROM, to, subject: params.subject, react: CaseUpdateEmail(params) });
 }
