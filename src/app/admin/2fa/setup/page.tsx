@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import type QRCodeLib from 'qrcode';
 
 type SetupStep = 'loading' | 'qr' | 'confirm' | 'codes' | 'error';
 
@@ -13,6 +14,7 @@ export default function Admin2FASetupPage() {
   const [step, setStep]               = useState<SetupStep>('loading');
   const [secret, setSecret]           = useState('');
   const [uri, setUri]                 = useState('');
+  const [qrDataUrl, setQrDataUrl]     = useState('');
   const [totpInput, setTotpInput]     = useState('');
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [error, setError]             = useState('');
@@ -41,6 +43,15 @@ export default function Admin2FASetupPage() {
         setStep('error');
       });
   }, [router]);
+
+  useEffect(() => {
+    if (!uri) return;
+    import('qrcode').then((QRCode: typeof QRCodeLib) => {
+      QRCode.toDataURL(uri, { width: 200, margin: 2, color: { dark: '#0E0C0A', light: '#FFFFFF' } })
+        .then(setQrDataUrl)
+        .catch(() => {/* QR generation failed — manual entry still works */});
+    });
+  }, [uri]);
 
   async function confirmCode() {
     if (!/^\d{6}$/.test(totpInput)) {
@@ -146,31 +157,40 @@ export default function Admin2FASetupPage() {
 
       {step === 'qr' && (
         <>
-          <div style={{ marginBottom: '20px', textAlign: 'left', width: '100%', maxWidth: '420px' }}>
-            <p style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(14,12,10,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              Option 1 — Open in authenticator app
+          {/* QR code — primary method */}
+          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+            <p style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(14,12,10,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+              Step 1 — Scan with your authenticator app
             </p>
-            <a
-              href={uri}
-              style={{
-                display: 'block',
-                background: 'var(--teal)',
-                color: 'white',
-                borderRadius: '8px',
-                padding: '10px 16px',
-                textDecoration: 'none',
-                fontSize: '13px',
-                fontWeight: 600,
-                textAlign: 'center',
-              }}
-            >
-              Open Authenticator App
-            </a>
+            {qrDataUrl ? (
+              <img
+                src={qrDataUrl}
+                alt="Scan this QR code in Google Authenticator, Authy, or any TOTP app"
+                width={200}
+                height={200}
+                style={{ borderRadius: '8px', border: '1px solid rgba(14,12,10,0.1)' }}
+              />
+            ) : (
+              <div style={{ width: 200, height: 200, background: 'rgba(14,12,10,0.05)', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', color: 'rgba(14,12,10,0.4)' }}>
+                Generating…
+              </div>
+            )}
+            <p style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginTop: '8px' }}>
+              Open Google Authenticator or Authy → tap <strong>+</strong> → <strong>Scan QR code</strong>
+            </p>
           </div>
 
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%', maxWidth: '420px', marginBottom: '20px' }}>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(14,12,10,0.1)' }} />
+            <span style={{ fontSize: '11px', color: 'rgba(14,12,10,0.35)', whiteSpace: 'nowrap' }}>or enter manually</span>
+            <div style={{ flex: 1, height: '1px', background: 'rgba(14,12,10,0.1)' }} />
+          </div>
+
+          {/* Manual entry — fallback */}
           <div style={{ marginBottom: '24px', textAlign: 'left', width: '100%', maxWidth: '420px' }}>
-            <p style={{ fontSize: '12px', fontWeight: 600, color: 'rgba(14,12,10,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              Option 2 — Enter secret manually
+            <p style={{ fontSize: '11px', color: 'rgba(14,12,10,0.45)', marginBottom: '6px' }}>
+              In your app: tap <strong>+</strong> → <strong>Enter a setup key</strong> → paste this secret:
             </p>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <code style={{
@@ -180,7 +200,7 @@ export default function Admin2FASetupPage() {
                 borderRadius: '6px',
                 padding: '10px 12px',
                 fontSize: '13px',
-                letterSpacing: '0.05em',
+                letterSpacing: '0.08em',
                 wordBreak: 'break-all',
                 fontFamily: 'monospace',
               }}>
@@ -199,14 +219,14 @@ export default function Admin2FASetupPage() {
                   cursor: 'pointer',
                   whiteSpace: 'nowrap',
                   transition: 'background 0.2s',
+                  flexShrink: 0,
                 }}
               >
                 {copied ? '✓ Copied' : 'Copy'}
               </button>
             </div>
-            <p style={{ fontSize: '11px', color: 'rgba(14,12,10,0.4)', marginTop: '6px' }}>
-              In your app: Add account → Enter setup key → paste the secret above.
-              Account type: Time-based (TOTP), SHA1, 6 digits, 30s interval.
+            <p style={{ fontSize: '10px', color: 'rgba(14,12,10,0.35)', marginTop: '5px' }}>
+              Select <strong>Time-based (TOTP)</strong> when prompted. SHA1, 6 digits, 30s interval.
             </p>
           </div>
 
