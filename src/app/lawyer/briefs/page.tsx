@@ -43,6 +43,7 @@ export default async function LawyerBriefsPage() {
     prisma.brief.findMany({
       where: { status: 'open' },
       orderBy: { created_at: 'desc' },
+      take: 100,
       include: {
         _count: { select: { proposals: true } },
         client: { select: { full_name: true } },

@@ -7,19 +7,12 @@ import prisma from '@/lib/prisma';
 
 export async function recalculateLawyerMetrics(lawyerId: string): Promise<void> {
   try {
-    const [allCases, disputedCount] = await Promise.all([
-      prisma.case.findMany({
-        where: { lawyer_id: lawyerId },
-        select: { status: true },
-      }),
-      prisma.dispute.count({
-        where: { case: { lawyer_id: lawyerId } },
-      }),
+    const [total, completed, active, disputedCount] = await Promise.all([
+      prisma.case.count({ where: { lawyer_id: lawyerId } }),
+      prisma.case.count({ where: { lawyer_id: lawyerId, status: 'completed' } }),
+      prisma.case.count({ where: { lawyer_id: lawyerId, status: { not: 'cancelled' } } }),
+      prisma.dispute.count({ where: { case: { lawyer_id: lawyerId } } }),
     ]);
-
-    const total     = allCases.length;
-    const completed = allCases.filter(c => c.status === 'completed').length;
-    const active    = allCases.filter(c => !['cancelled'].includes(c.status)).length;
 
     await prisma.lawyerProfile.update({
       where: { id: lawyerId },

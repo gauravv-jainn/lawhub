@@ -16,9 +16,21 @@ export default async function ClientProposalsPage() {
   const briefs = await prisma.brief.findMany({
     where: { client_id: userId },
     orderBy: { created_at: 'desc' },
-    include: {
+    take: 50,
+    select: {
+      id: true,
+      title: true,
+      category: true,
+      status: true,
       proposals: {
-        include: {
+        orderBy: { created_at: 'desc' },
+        take: 30,
+        select: {
+          id: true,
+          proposed_fee: true,
+          fee_structure: true,
+          status: true,
+          created_at: true,
           lawyer: {
             select: {
               full_name: true,

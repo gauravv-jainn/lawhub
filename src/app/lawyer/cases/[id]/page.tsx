@@ -51,6 +51,7 @@ export default async function LawyerCaseDetailPage({ params }: { params: { id: s
     prisma.caseEvent.findMany({
       where: { case_id: params.id },
       orderBy: { created_at: 'asc' },
+      take: 200,
       include: { actor: { select: { full_name: true, role: true } } },
     }),
   ]);

@@ -20,6 +20,7 @@ export default async function BriefDetailPage({ params }: { params: { id: string
     prisma.proposal.findMany({
       where: { brief_id: params.id },
       orderBy: { created_at: 'desc' },
+      take: 50,
       include: {
         lawyer: {
           select: {

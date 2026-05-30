@@ -39,7 +39,7 @@ export async function GET(
         },
       },
       payments:   { orderBy: { milestone_number: 'asc' } },
-      events:     { orderBy: { created_at: 'asc' } },
+      events:     { orderBy: { created_at: 'asc' }, take: 200 },
       dispute:    true,
     },
   });

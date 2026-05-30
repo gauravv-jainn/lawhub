@@ -12,7 +12,7 @@ export default async function ClientDashboard() {
   if (!session?.user) redirect('/auth/login');
   const userId = session.user.id;
 
-  const [briefs, cases, payments] = await Promise.all([
+  const [briefs, cases, activeBriefsCount, totalSpentResult, totalProposalsResult] = await Promise.all([
     prisma.brief.findMany({
       where: { client_id: userId },
       orderBy: { created_at: 'desc' },
@@ -27,15 +27,20 @@ export default async function ClientDashboard() {
         brief: { select: { title: true } },
       },
     }),
-    prisma.payment.findMany({
-      where: { client_id: userId },
-      select: { amount: true, status: true },
+    prisma.brief.count({ where: { client_id: userId, status: 'open' } }),
+    prisma.payment.aggregate({
+      where: { client_id: userId, status: 'released' },
+      _sum: { amount: true },
+    }),
+    prisma.proposal.aggregate({
+      where: { brief: { client_id: userId } },
+      _count: { _all: true },
     }),
   ]);
 
-  const activeBriefs = briefs.filter(b => b.status === 'open').length;
-  const totalProposals = briefs.reduce((sum, b) => sum + (b._count?.proposals ?? 0), 0);
-  const totalSpent = payments.filter(p => p.status === 'released').reduce((sum, p) => sum + p.amount, 0);
+  const activeBriefs = activeBriefsCount;
+  const totalProposals = totalProposalsResult._count._all;
+  const totalSpent = totalSpentResult._sum.amount ?? 0;
 
   const brifsWithProposals = briefs.filter(b => (b._count?.proposals ?? 0) > 0 && b.status === 'open');
 

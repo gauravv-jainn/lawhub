@@ -5,6 +5,7 @@ import LawyerVerificationActions from './LawyerVerificationActions';
 export default async function AdminLawyersPage() {
   const lawyers = await prisma.lawyerProfile.findMany({
     orderBy: [{ verification_status: 'asc' }, { created_at: 'asc' }],
+    take: 500,
     include: {
       user: { select: { full_name: true, email: true, phone: true, created_at: true } },
     },
