@@ -89,7 +89,7 @@ export async function PATCH(
   // Compute new expiry if requested
   let newExpiry: Date | undefined;
   if (extends_days) {
-    newExpiry = new Date(brief.expires_at);
+    newExpiry = new Date(brief.expires_at ?? Date.now());
     newExpiry.setDate(newExpiry.getDate() + extends_days);
     // Cap total expiry to 90 days from now
     const maxExpiry = new Date();
