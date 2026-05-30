@@ -40,11 +40,59 @@ export default async function AdminLawyersPage() {
                 ))}
               </div>
             )}
-            {/* Document links */}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px', flexWrap: 'wrap' }}>
-              {lawyer.bci_doc_url && <a href={lawyer.bci_doc_url} target="_blank" rel="noopener" style={{ fontSize: '11px', color: 'var(--teal)', textDecoration: 'none' }}>📄 BCI Certificate</a>}
-              {lawyer.aadhaar_doc_url && <a href={lawyer.aadhaar_doc_url} target="_blank" rel="noopener" style={{ fontSize: '11px', color: 'var(--teal)', textDecoration: 'none' }}>📄 Aadhaar</a>}
-              {lawyer.degree_doc_url && <a href={lawyer.degree_doc_url} target="_blank" rel="noopener" style={{ fontSize: '11px', color: 'var(--teal)', textDecoration: 'none' }}>📄 Degree</a>}
+            {/* Documents */}
+            <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(14,12,10,0.06)' }}>
+              <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(14,12,10,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
+                Verification Documents
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {[
+                  { label: 'BCI Certificate', url: lawyer.bci_doc_url },
+                  { label: 'Aadhaar',          url: lawyer.aadhaar_doc_url },
+                  { label: 'Degree',            url: lawyer.degree_doc_url },
+                ].map(({ label, url }) => (
+                  url ? (
+                    <a
+                      key={label}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                        fontSize: '12px', fontWeight: 600,
+                        color: 'var(--teal)',
+                        padding: '5px 12px',
+                        border: '1px solid rgba(13,115,119,0.3)',
+                        borderRadius: '6px',
+                        textDecoration: 'none',
+                        background: 'rgba(13,115,119,0.05)',
+                      }}
+                    >
+                      📄 {label} ↗
+                    </a>
+                  ) : (
+                    <span
+                      key={label}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '5px',
+                        fontSize: '12px', fontWeight: 500,
+                        color: 'rgba(192,57,43,0.7)',
+                        padding: '5px 12px',
+                        border: '1px solid rgba(192,57,43,0.2)',
+                        borderRadius: '6px',
+                        background: 'rgba(192,57,43,0.04)',
+                      }}
+                    >
+                      ✗ {label} missing
+                    </span>
+                  )
+                ))}
+              </div>
+              {!lawyer.bci_doc_url && !lawyer.aadhaar_doc_url && !lawyer.degree_doc_url && (
+                <p style={{ fontSize: '11px', color: 'rgba(192,57,43,0.8)', marginTop: '8px', fontWeight: 500 }}>
+                  ⚠ No documents uploaded — do not approve without verifying identity through another channel.
+                </p>
+              )}
             </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
