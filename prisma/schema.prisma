@@ -187,6 +187,7 @@ model User {
   milestone_revisions MilestoneRevision[]
   admin_logs          AdminLog[]
   admin_2fa           Admin2FA?
+  user_2fa            UserTwoFA?
   payout_bank_details PayoutBankDetails?
   ledger_entries      PaymentLedger[]
   payouts             Payout[]
@@ -208,6 +209,21 @@ model Admin2FA {
   user            User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
   @@map("admin_2fa")
+}
+
+// ─── User 2FA (all non-admin roles: lawyer, client, enterprise, ngo) ──────────
+
+model UserTwoFA {
+  id                 String    @id @default(cuid())
+  user_id            String    @unique
+  totp_secret        String    // base32 TOTP secret
+  backup_codes       Json      // array of SHA-256 hashed 8-char codes
+  enabled            Boolean   @default(false)
+  setup_completed_at DateTime?
+  last_verified_at   DateTime?
+  user               User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("user_2fa")
 }
 
 // ─── Lawyer ──────────────────────────────────────────────────────────────────

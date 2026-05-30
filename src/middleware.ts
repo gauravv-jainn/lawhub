@@ -9,6 +9,9 @@ const ROLE_HOME: Record<string, string> = {
   admin:      '/admin/dashboard',
 };
 
+// Paths under each non-admin role that require 2FA to be active
+const NON_ADMIN_PROTECTED = ['/client', '/lawyer', '/enterprise', '/ngo'];
+
 export default withAuth(
   function middleware(req) {
     const { pathname } = req.nextUrl;
@@ -45,6 +48,22 @@ export default withAuth(
     }
     if (pathname.startsWith('/client') && token?.role !== 'client' && token?.role !== 'admin') {
       return NextResponse.redirect(new URL('/auth/login', req.url));
+    }
+
+    // Non-admin 2FA enforcement — lawyers, clients, enterprise, NGO
+    // Admins are exempt (they have their own /admin/2fa/* flow above).
+    // The /auth/2fa/* pages are always accessible so users can complete setup/verify.
+    if (
+      token &&
+      token.role !== 'admin' &&
+      NON_ADMIN_PROTECTED.some(p => pathname.startsWith(p))
+    ) {
+      if (!token.twoFactorVerified) {
+        if (!token.twoFactorSetupDone) {
+          return NextResponse.redirect(new URL('/auth/2fa/setup', req.url));
+        }
+        return NextResponse.redirect(new URL('/auth/2fa/verify', req.url));
+      }
     }
 
     return NextResponse.next();

@@ -77,18 +77,26 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as { id: string; role: UserRole }).role;
 
-        // For admins: check 2FA status from DB once at sign-in
         if (token.role === 'admin') {
+          // Admins: check Admin2FA setup status; twoFactorVerified always starts false
           const twofa = await prisma.admin2FA.findUnique({
             where: { user_id: token.id as string },
             select: { enabled: true, setup_completed_at: true },
           });
           token.twoFactorVerified = false;
           token.adminTwoFactorSetupDone = !!(twofa?.enabled && twofa.setup_completed_at);
+        } else {
+          // All other roles (lawyer, client, enterprise, ngo): check UserTwoFA
+          const twofa = await prisma.userTwoFA.findUnique({
+            where: { user_id: token.id as string },
+            select: { enabled: true, setup_completed_at: true },
+          });
+          token.twoFactorVerified = false;
+          token.twoFactorSetupDone = !!(twofa?.enabled && twofa.setup_completed_at);
         }
       }
 
-      // On explicit session update: re-fetch role and admin 2FA status from DB
+      // On explicit session.update(): re-fetch role and 2FA status from DB
       if (trigger === 'update' && token.id) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
@@ -106,7 +114,17 @@ export const authOptions: NextAuthOptions = {
           token.adminTwoFactorSetupDone = !!(twofa?.enabled && twofa.setup_completed_at);
           if (twofa?.last_verified_at) {
             const ageMs = Date.now() - new Date(twofa.last_verified_at).getTime();
-            token.twoFactorVerified = ageMs < 4 * 60 * 60 * 1000; // valid within 4h session
+            token.twoFactorVerified = ageMs < 4 * 60 * 60 * 1000;
+          }
+        } else {
+          const twofa = await prisma.userTwoFA.findUnique({
+            where: { user_id: token.id as string },
+            select: { enabled: true, setup_completed_at: true, last_verified_at: true },
+          });
+          token.twoFactorSetupDone = !!(twofa?.enabled && twofa.setup_completed_at);
+          if (twofa?.last_verified_at) {
+            const ageMs = Date.now() - new Date(twofa.last_verified_at).getTime();
+            token.twoFactorVerified = ageMs < 4 * 60 * 60 * 1000;
           }
         }
       }
@@ -120,6 +138,9 @@ export const authOptions: NextAuthOptions = {
         if (token.role === 'admin') {
           session.user.twoFactorVerified = token.twoFactorVerified ?? false;
           session.user.adminTwoFactorSetupDone = token.adminTwoFactorSetupDone ?? false;
+        } else {
+          session.user.twoFactorVerified = token.twoFactorVerified ?? false;
+          session.user.twoFactorSetupDone = token.twoFactorSetupDone ?? false;
         }
       }
       return session;

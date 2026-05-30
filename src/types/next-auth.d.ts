@@ -10,7 +10,8 @@ declare module 'next-auth' {
       name: string;
       role: UserRole;
       twoFactorVerified?: boolean;
-      adminTwoFactorSetupDone?: boolean;
+      twoFactorSetupDone?: boolean;    // non-admin roles: whether TOTP is configured
+      adminTwoFactorSetupDone?: boolean; // admin only (legacy compat)
     };
   }
 
@@ -27,6 +28,7 @@ declare module 'next-auth/jwt' {
     id: string;
     role: UserRole;
     twoFactorVerified?: boolean;
-    adminTwoFactorSetupDone?: boolean;
+    twoFactorSetupDone?: boolean;      // non-admin roles
+    adminTwoFactorSetupDone?: boolean; // admin only (legacy compat)
   }
 }
