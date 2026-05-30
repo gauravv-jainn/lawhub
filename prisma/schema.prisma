@@ -359,7 +359,7 @@ model Brief {
   budget_max         Int?
   pro_bono           Boolean       @default(false) // NGO zero-fee cases
   status             BriefStatus   @default(open)
-  expires_at         DateTime      // required — default: now() + 30 days
+  expires_at         DateTime?     // null = no expiry for existing briefs; new briefs set 30-day default in API
   created_at         DateTime      @default(now())
   updated_at         DateTime      @updatedAt
   proposals          Proposal[]
